@@ -1,16 +1,18 @@
 | ID | Descripció | Status | Fase | Verified |
 |----|-----------|--------|------|----------|
-| REQ-001 | Veure estat workspace | active | 03-dashboard-ui | ⬜ |
-| REQ-002 | Llistar agents | active | 03-dashboard-ui | ⬜ |
-| REQ-003 | Veure projectes actius | active | 03-dashboard-ui | ⬜ |
-| REQ-004 | Veure tasques en progrés | active | 03-dashboard-ui | ⬜ |
-| REQ-005 | Board Kanban | active | 04-kanban | ⬜ |
-| REQ-006 | Crear/Editar tasques | active | 05-control | ⬜ |
-| REQ-007 | Assignar agents | active | 05-control | ⬜ |
-| REQ-008 | Veure logs/històric | active | 05-control | ⬜ |
-| REQ-009 | UI macOS-style | active | 06-polish | ⬜ |
-| REQ-010 | Real-time updates | active | 06-polish | ⬜ |
-| REQ-011 | Mobile responsive | active | 06-polish | ⬜ |
-| REQ-012 | Auth | out-of-scope | - | ⬜ |
-| REQ-013 | Multi-usuari | out-of-scope | - | ⬜ |
-| REQ-014 | Persistència DB | out-of-scope | - | ⬜ |
+| REQ-001 | API per agents crear templates | active | 01-api-templates | ⬜ |
+| REQ-002 | Components bàsics: text, code, checklist, actions | active | 03-components-basic | ⬜ |
+| REQ-003 | API per agents crear cards | active | 02-api-cards | ⬜ |
+| REQ-004 | Boards amb columnes (Kanban) | active | 04-frontend-boards | ⬜ |
+| REQ-005 | UI web per humans interactuar | active | 04-frontend-boards | ⬜ |
+| REQ-006 | Component `image` | active | 05-components-rich | ⬜ |
+| REQ-007 | Component `data` (JSON) | active | 05-components-rich | ⬜ |
+| REQ-008 | Rich text editor | active | 05-components-rich | ⬜ |
+| REQ-009 | Syntax highlighting | active | 05-components-rich | ⬜ |
+| REQ-010 | Real-time updates | active | 06-realtime | ⬜ |
+| REQ-011 | Comments a cards | active | 06-realtime | ⬜ |
+| REQ-012 | History/audit log | active | 06-realtime | ⬜ |
+| REQ-013 | Notifications | active | 07-notifications | ⬜ |
+| REQ-014 | Multi-user / Auth | active | 08-auth | ⬜ |
+| REQ-015 | Permisos | active | 08-auth | ⬜ |
+| REQ-016 | Template marketplace | active | 09-marketplace | ⬜ |
