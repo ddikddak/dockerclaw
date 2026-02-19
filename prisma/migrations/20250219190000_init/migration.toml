@@ -1,0 +1,8 @@
+{
+  "initial": true,
+  "version": "20250219190000",
+  "migration": {
+    "name": "init",
+    "duration": 0
+  }
+}

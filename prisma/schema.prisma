@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Agent {
+  id          String     @id @default(uuid())
+  name        String
+  email       String     @unique
+  api_key     String     @unique
+  webhook_url String?
+  created_at  DateTime   @default(now())
+  
+  templates   Template[]
+  cards       Card[]
+  events      Event[]
+}
+
+model Template {
+  id         String   @id @default(uuid())
+  agent_id   String
+  name       String
+  schema     Json
+  created_at DateTime @default(now())
+  
+  agent      Agent    @relation(fields: [agent_id], references: [id])
+  cards      Card[]
+}
+
+model Card {
+  id          String   @id @default(uuid())
+  template_id String
+  agent_id    String
+  data        Json
+  status      String   @default("pending")
+  created_at  DateTime @default(now())
+  
+  template    Template @relation(fields: [template_id], references: [id])
+  agent       Agent    @relation(fields: [agent_id], references: [id])
+}
+
+model Event {
+  id         String   @id @default(uuid())
+  agent_id   String
+  type       String
+  payload    Json
+  status     String   @default("pending")
+  created_at DateTime @default(now())
+  
+  agent      Agent    @relation(fields: [agent_id], references: [id])
+}
