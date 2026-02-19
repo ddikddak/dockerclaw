@@ -40,6 +40,61 @@ Conjunt limitat de components per començar:
 ### 4. Cards (Instàncies de Templates)
 Un cop un agent omple un template → es crea una **card** que va a un **board**.
 
+### 5. Accions (Tancant el Loop)
+Les accions són la clau del feedback Agent ↔ Human:
+
+**A. Accions de Template (Global)**
+- Afecten tota la card
+- Exemples: `approve`, `reject`, `archive`, `delete`
+- Resultat: Webhook a l'agent amb `{action: "approved", card_id: "..."}`
+
+**B. Accions de Component (Individual)**
+- Afecten un component específic dins la card
+- Exemples: `edit_text`, `toggle_check`, `add_comment`
+- Resultat: Webhook a l'agent amb `{action: "edit_text", component_id: "...", new_value: "..."}`
+
+### 6. Feedback Loop (Webhooks)
+
+```
+AGENT                                         HUMAN
+  │                                             │
+  │─── POST /cards (crea card) ────────────────→│
+  │                                             │
+  │←──── Card apareix al Board ─────────────────│
+  │                                             │
+  │←──── Human fa acció (ex: "Editar text") ────│
+  │                                             │
+  │←──── Webhook: {action: "edit_text",    ─────│
+  │               component_id: "body",         │
+  │               new_value: "nou contingut"}   │
+  │                                             │
+  │─── Agent processa, actualitza card ────────→│
+  │                                             │
+  │←──── Card actualitzada al Board ────────────│
+```
+
+**Exemples de Workflow:**
+
+1. **Document Review amb Edició:**
+   - Agent crea card amb template "Document Review"
+   - Human llegeix, fa clic a "Editar" (acció de component `text`)
+   - Human edita el text, guarda
+   - Webhook enviat a agent: `{action: "edit_text", component: "body", value: "..."}`
+   - Agent rep el canvi, actualitza el document font, torna a penjar
+   - Card es refresca amb nova versió
+
+2. **Aprovació Simple:**
+   - Agent crea card "PR Review"
+   - Human revisa codi, fa clic a "Approve" (acció de template)
+   - Webhook enviat: `{action: "approved", card_id: "...", agent_id: "..."}`
+   - Agent rep l'aprovació i fa merge automàticament
+
+3. **Checklist Interactiva:**
+   - Agent crea card amb checklist de tasks
+   - Human marca items com a fets (accions de component `checklist`)
+   - Webhook per cada canvi: `{action: "toggle_check", item_id: "...", checked: true}`
+   - Agent actualitza el seu estat intern
+
 ## Casos d'Ús (Priories)
 
 1. **Document Review** — Agent escriu doc → Human revisa i aprova
@@ -82,18 +137,21 @@ Un cop un agent omple un template → es crea una **card** que va a un **board**
 - REQ-003: API per agents crear cards (omplir templates)
 - REQ-004: Boards amb columnes (Kanban style)
 - REQ-005: UI web per humans veure i interactuar amb cards
+- REQ-006: **Accions de Template** (approve, reject) amb webhooks
+- REQ-007: **Accions de Component** (edit_text, toggle_check) amb webhooks
+- REQ-008: **Webhook system** per notificar agents (endpoint configurable per agent)
 
-### Fase 2 (Rich Components)
-- REQ-006: Component `image` (upload + display)
-- REQ-007: Component `data` (JSON viewer)
-- REQ-008: Rich text editor per component `text`
-- REQ-009: Syntax highlighting per `code`
+### Fase 2 (Rich Components & Advanced Actions)
+- REQ-009: Component `image` (upload + display)
+- REQ-010: Component `data` (JSON viewer)
+- REQ-011: Rich text editor per component `text`
+- REQ-012: Syntax highlighting per `code`
+- REQ-013: **Comments** (acció de component tipus `add_comment`)
 
-### Fase 3 (Advanced)
-- REQ-010: Real-time updates (WebSocket/SSE)
-- REQ-011: Comments a cards
-- REQ-012: History/audit log
-- REQ-013: Notifications (email/webhook)
+### Fase 3 (Real-time & History)
+- REQ-014: Real-time updates (WebSocket/SSE)
+- REQ-015: History/audit log de totes les accions
+- REQ-016: Notifications (email/webhook)
 
 ### Fase 4 (Scale)
 - REQ-014: Multi-user / Auth
@@ -135,13 +193,54 @@ GET    /api/templates/:id          # Veure template
 POST   /api/cards                  # Crear card (omplir template)
 GET    /api/cards                  # Llistar cards (per board)
 PATCH  /api/cards/:id              # Update card status
-POST   /api/cards/:id/actions      # Human action (approve, etc.)
+
+# Actions (Humans interactuen)
+POST   /api/cards/:id/actions      # Acció de TEMPLATE (approve, reject)
+POST   /api/cards/:id/components/:component_id/actions  # Acció de COMPONENT (edit, toggle)
+
+# Webhooks (Agents reben feedback)
+POST   /api/agents/:agent_id/webhooks/configure  # Configurar webhook URL
+GET    /api/agents/:agent_id/events              # Polling d'events (alternativa)
 
 # Boards
 GET    /api/boards                 # Llistar boards
 GET    /api/boards/:id             # Veure board amb cards
 
-# Events (feedback to agents)
-GET    /api/events                 # Poll events
-POST   /api/webhooks/configure     # Webhook per events
+# Real-time (Fase 3)
+GET    /api/stream                 # Server-Sent Events per updates
+```
+
+## Exemple de Webhook Payload
+
+**Acció de Template:**
+```json
+{
+  "event": "template_action",
+  "timestamp": "2026-02-19T12:00:00Z",
+  "card_id": "card_123",
+  "template_id": "template_456",
+  "agent_id": "nestor",
+  "action": "approved",
+  "data": {
+    "approved_by": "human_user",
+    "message": "Looks good!"
+  }
+}
+```
+
+**Acció de Component:**
+```json
+{
+  "event": "component_action",
+  "timestamp": "2026-02-19T12:05:00Z",
+  "card_id": "card_123",
+  "component_id": "body_text",
+  "agent_id": "nestor",
+  "action": "edit_text",
+  "data": {
+    "previous_value": "Old content",
+    "new_value": "New edited content",
+    "edited_by": "human_user"
+  }
+}
 ```

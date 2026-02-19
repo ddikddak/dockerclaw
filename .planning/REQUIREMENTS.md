@@ -5,14 +5,17 @@
 | REQ-003 | API per agents crear cards | active | 02-api-cards | ⬜ |
 | REQ-004 | Boards amb columnes (Kanban) | active | 04-frontend-boards | ⬜ |
 | REQ-005 | UI web per humans interactuar | active | 04-frontend-boards | ⬜ |
-| REQ-006 | Component `image` | active | 05-components-rich | ⬜ |
-| REQ-007 | Component `data` (JSON) | active | 05-components-rich | ⬜ |
-| REQ-008 | Rich text editor | active | 05-components-rich | ⬜ |
-| REQ-009 | Syntax highlighting | active | 05-components-rich | ⬜ |
-| REQ-010 | Real-time updates | active | 06-realtime | ⬜ |
-| REQ-011 | Comments a cards | active | 06-realtime | ⬜ |
-| REQ-012 | History/audit log | active | 06-realtime | ⬜ |
-| REQ-013 | Notifications | active | 07-notifications | ⬜ |
-| REQ-014 | Multi-user / Auth | active | 08-auth | ⬜ |
-| REQ-015 | Permisos | active | 08-auth | ⬜ |
-| REQ-016 | Template marketplace | active | 09-marketplace | ⬜ |
+| REQ-006 | **Accions de Template** (approve, reject) | active | 05-actions | ⬜ |
+| REQ-007 | **Accions de Component** (edit, toggle) | active | 05-actions | ⬜ |
+| REQ-008 | **Webhook system** per notificar agents | active | 05-actions | ⬜ |
+| REQ-009 | Component `image` | active | 06-rich-components | ⬜ |
+| REQ-010 | Component `data` (JSON) | active | 06-rich-components | ⬜ |
+| REQ-011 | Rich text editor | active | 06-rich-components | ⬜ |
+| REQ-012 | Syntax highlighting | active | 06-rich-components | ⬜ |
+| REQ-013 | **Comments** (acció add_comment) | active | 07-interactive | ⬜ |
+| REQ-014 | Real-time updates | active | 08-realtime | ⬜ |
+| REQ-015 | History/audit log | active | 08-realtime | ⬜ |
+| REQ-016 | Notifications | active | 09-notifications | ⬜ |
+| REQ-017 | Multi-user / Auth | active | 10-scale | ⬜ |
+| REQ-018 | Permisos | active | 10-scale | ⬜ |
+| REQ-019 | Template marketplace | active | 11-marketplace | ⬜ |
