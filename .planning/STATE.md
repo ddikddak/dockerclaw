@@ -1,23 +1,27 @@
 ---
-current_phase: 01-api-templates
-last_action: 2026-02-19 12:51 UTC
-status: ready
+current_phase: 02-frontend-foundation
+last_action: 2026-02-19 19:52 UTC
+status: plans-ready
 ---
 
 ## Posició Actual
-Projecte pivotat a: **DockerClaw (C2H)** — Plataforma Agent-to-Human Communication.
+Fase 02: Frontend Foundation - Discussió completada (5 preguntes respondides)
 
-**Visió:** Agents creen templates → Omplen cards → Humans veuen a boards.
-**Components inicials:** text, code, checklist, actions.
+## Decisions preses:
+- Stack: Next.js 15 + React 19 + Tailwind v4 + shadcn/ui
+- UI: Figma-like (canvas infinit, zoom, grid)
+- Features: Kanban drag-drop, SSE temps real
+- Deploy: Vercel (frontend + API routes + Supabase)
+- Qualitat: Professional (2-3 dies, zoom infinit, animacions fluides)
 
 ## Blockers
-Cap. Pròxim pas: Crear repo GitHub.
+Cap.
 
 ## Next Steps
-1. Crear repo `dockerclaw` a GitHub
-2. Spawnejar Nestor per setup backend (Node.js + Express + PostgreSQL)
-3. Començar Fase 1: API Templates
+1. Spawn Nestor per implementar Fase 02
+2. Setup Next.js + shadcn/ui + Supabase
+3. Implementar canvas Figma-like amb drag-drop
 
 ## Resume Info
-Stack: Node.js (backend API) + Next.js (frontend) + PostgreSQL.
-Components MVP: text, code, checklist, actions.
+Fase 01 completada (Nestor: Express API).
+Fase 02: Frontend professional amb canvas Figma-like.
