@@ -112,7 +112,7 @@ class ApiClient {
     return this.fetch(`/api/cards/${id}`)
   }
 
-  async createCard(card: Omit<Card, 'id' | 'created_at'>): Promise<Card> {
+  async createCard(card: { template_id: string; data: Record<string, any> }): Promise<Card> {
     return this.fetch('/api/cards', {
       method: 'POST',
       body: JSON.stringify(card),
@@ -199,7 +199,7 @@ class ApiClient {
     const { url, filename, size } = await uploadResponse.json()
     
     return this.executeComponentAction(cardId, componentId, {
-      action: 'edit_text',
+      action: 'upload_image',
       payload: { url, filename, size, type: 'image' },
     })
   }
