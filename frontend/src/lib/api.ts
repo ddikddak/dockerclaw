@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
 
 export interface Card {
   id: string
@@ -10,16 +10,42 @@ export interface Card {
     type?: 'text' | 'code' | 'checklist'
     content?: string
     checklist?: { text: string; checked: boolean }[]
+    items?: { text: string; checked: boolean }[]
     language?: string
+    [key: string]: any
   }
-  status: 'pending' | 'in_progress' | 'approved' | 'rejected'
+  status: 'pending' | 'in_progress' | 'approved' | 'rejected' | 'archived' | 'deleted'
   created_at: string
   updated_at?: string
 }
 
 export interface CardAction {
-  action: 'approve' | 'reject' | 'move'
-  target_status?: string
+  action: 'approve' | 'reject' | 'delete' | 'archive' | 'move'
+  payload?: Record<string, any>
+}
+
+export interface ComponentAction {
+  action: 'edit_text' | 'edit_code' | 'toggle_check' | 'add_comment'
+  payload: Record<string, any>
+}
+
+export interface ActionResponse {
+  success: boolean
+  action: {
+    id: string
+    card_id: string
+    agent_id: string
+    type: string
+    action: string
+    payload: Record<string, any>
+    status: string
+    created_at: string
+  }
+  card: {
+    id: string
+    status?: string
+    data?: Record<string, any>
+  }
 }
 
 class ApiClient {
@@ -39,13 +65,15 @@ class ApiClient {
     })
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`)
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+      throw new Error(error.error || `API error: ${response.status} ${response.statusText}`)
     }
 
     return response.json()
   }
 
-  async getCards(): Promise<Card[]> {
+  // Cards
+  async getCards(): Promise<{ cards: Card[] }> {
     return this.fetch('/api/cards')
   }
 
@@ -60,15 +88,93 @@ class ApiClient {
     })
   }
 
-  async executeAction(id: string, action: CardAction): Promise<Card> {
+  // Card Actions
+  async executeCardAction(id: string, action: CardAction): Promise<ActionResponse> {
     return this.fetch(`/api/cards/${id}/actions`, {
       method: 'POST',
       body: JSON.stringify(action),
     })
   }
 
-  async getAgentEvents(agentId: string): Promise<EventSource> {
-    return new EventSource(`${this.baseUrl}/api/agents/${agentId}/events`)
+  async approveCard(id: string): Promise<ActionResponse> {
+    return this.executeCardAction(id, { action: 'approve' })
+  }
+
+  async rejectCard(id: string): Promise<ActionResponse> {
+    return this.executeCardAction(id, { action: 'reject' })
+  }
+
+  async deleteCard(id: string): Promise<ActionResponse> {
+    return this.executeCardAction(id, { action: 'delete' })
+  }
+
+  async archiveCard(id: string): Promise<ActionResponse> {
+    return this.executeCardAction(id, { action: 'archive' })
+  }
+
+  async moveCard(id: string, column: string): Promise<ActionResponse> {
+    return this.executeCardAction(id, { action: 'move', payload: { column } })
+  }
+
+  // Component Actions
+  async executeComponentAction(
+    cardId: string, 
+    componentId: string, 
+    action: ComponentAction
+  ): Promise<ActionResponse> {
+    return this.fetch(`/api/cards/${cardId}/components/${componentId}/actions`, {
+      method: 'POST',
+      body: JSON.stringify(action),
+    })
+  }
+
+  async editText(cardId: string, componentId: string, text: string): Promise<ActionResponse> {
+    return this.executeComponentAction(cardId, componentId, {
+      action: 'edit_text',
+      payload: { text },
+    })
+  }
+
+  async editCode(cardId: string, componentId: string, code: string): Promise<ActionResponse> {
+    return this.executeComponentAction(cardId, componentId, {
+      action: 'edit_code',
+      payload: { text: code },
+    })
+  }
+
+  async toggleCheck(cardId: string, componentId: string, itemIndex: number): Promise<ActionResponse> {
+    return this.executeComponentAction(cardId, componentId, {
+      action: 'toggle_check',
+      payload: { itemIndex },
+    })
+  }
+
+  // Templates
+  async getTemplates(): Promise<{ templates: any[] }> {
+    return this.fetch('/api/templates')
+  }
+
+  async createTemplate(template: { name: string; schema: Record<string, any> }): Promise<any> {
+    return this.fetch('/api/templates', {
+      method: 'POST',
+      body: JSON.stringify(template),
+    })
+  }
+
+  // Agent
+  async registerAgent(agent: { name: string; email: string; webhook_url?: string }): Promise<any> {
+    return this.fetch('/api/agents/register', {
+      method: 'POST',
+      body: JSON.stringify(agent),
+    })
+  }
+
+  async getAgentEvents(agentId: string, apiKey: string): Promise<{ events: any[] }> {
+    return this.fetch(`/api/agents/${agentId}/events`, {
+      headers: {
+        'X-API-Key': apiKey,
+      },
+    })
   }
 }
 

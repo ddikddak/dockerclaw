@@ -51,9 +51,9 @@ export function DndProvider() {
         
         // API call
         try {
-          await api.executeAction(cardId, {
+          await api.executeCardAction(cardId, {
             action: 'move',
-            target_status: newStatus,
+            payload: { column: newStatus },
           })
         } catch (error) {
           // Revert on error

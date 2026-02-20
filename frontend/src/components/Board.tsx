@@ -25,7 +25,7 @@ export function Board() {
 
   useEffect(() => {
     if (data) {
-      setCards(data)
+      setCards(data.cards)
     }
   }, [data, setCards])
 
