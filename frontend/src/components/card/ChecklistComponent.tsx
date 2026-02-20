@@ -12,7 +12,6 @@ interface ChecklistItem {
 interface ChecklistComponentProps {
   data: {
     items?: ChecklistItem[]
-    checklist?: ChecklistItem[]
   }
   cardId?: string
   componentId?: string
@@ -28,7 +27,7 @@ export function ChecklistComponent({
   onToggle 
 }: ChecklistComponentProps) {
   const [togglingIndex, setTogglingIndex] = useState<number | null>(null)
-  const checklist = data?.items || data?.checklist || []
+  const checklist = data?.items || []
 
   if (checklist.length === 0) {
     return <span className="text-gray-400 italic">No items</span>
