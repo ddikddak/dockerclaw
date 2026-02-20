@@ -279,7 +279,6 @@ class ApiClient {
       }),
     })
   }
-}
 
   // Activity
   async getActivity(options?: { 
