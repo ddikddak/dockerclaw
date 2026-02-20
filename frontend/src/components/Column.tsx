@@ -286,7 +286,7 @@ export function Column({ id, title, color, cards, index }: ColumnProps) {
     await editCodeMutation.mutateAsync({ cardId, componentId, code })
   }
 
-  const handleToggleCheck = async (cardId: string, componentId: string, itemIndex: number) => {
+  const handleToggleCheck = async (cardId: string, componentId: string, itemIndex: number, checked: boolean) => {
     await toggleCheckMutation.mutateAsync({ cardId, componentId, itemIndex })
   }
 
