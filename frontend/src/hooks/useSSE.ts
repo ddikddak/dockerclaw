@@ -50,7 +50,6 @@ export function useSSE(options: UseSSEOptions = {}) {
       eventSourceRef.current = eventSource;
 
       eventSource.onopen = () => {
-        console.log('SSE connected');
         setIsConnected(true);
         reconnectAttemptsRef.current = 0;
         onConnect?.();
@@ -69,10 +68,9 @@ export function useSSE(options: UseSSEOptions = {}) {
       // Listen for specific events
       eventSource.addEventListener('connected', (event) => {
         try {
-          const data = JSON.parse((event as MessageEvent).data);
-          console.log('SSE connection established:', data);
+          JSON.parse((event as MessageEvent).data);
         } catch (error) {
-          console.error('Failed to parse connected event:', error);
+          // Parse error handled silently in production
         }
       });
 
@@ -81,13 +79,12 @@ export function useSSE(options: UseSSEOptions = {}) {
           const data = JSON.parse((event as MessageEvent).data);
           setLastEvent(data);
           onMessage?.(data);
-        } catch (error) {
-          console.error('Failed to parse activity event:', error);
+        } catch {
+          // Parse error handled silently in production
         }
       });
 
       eventSource.onerror = (error) => {
-        console.error('SSE error:', error);
         setIsConnected(false);
         onError?.(error);
 
@@ -102,17 +99,12 @@ export function useSSE(options: UseSSEOptions = {}) {
             30000 // Max 30 second delay
           );
           
-          console.log(`SSE reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})`);
-          
           reconnectTimerRef.current = setTimeout(() => {
             connect();
           }, delay);
-        } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-          console.error('SSE max reconnect attempts reached');
         }
       };
     } catch (error) {
-      console.error('Failed to create EventSource:', error);
       setIsConnected(false);
     }
   }, [onConnect, onError, onMessage, reconnect, reconnectInterval, maxReconnectAttempts]);
@@ -140,8 +132,8 @@ export function useSSE(options: UseSSEOptions = {}) {
       try {
         const data = JSON.parse(event.data);
         callback(data);
-      } catch (error) {
-        console.error('Failed to parse card event:', error);
+      } catch {
+        // Parse error handled silently in production
       }
     };
 
