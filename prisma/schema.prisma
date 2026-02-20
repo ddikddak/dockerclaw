@@ -53,3 +53,28 @@ model Event {
   
   agent      Agent    @relation(fields: [agent_id], references: [id])
 }
+
+model Comment {
+  id          String   @id @default(uuid())
+  card_id     String
+  author_type String   // 'human' | 'agent'
+  author_id   String
+  author_name String
+  content     String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  
+  @@index([card_id])
+}
+
+model Reaction {
+  id          String   @id @default(uuid())
+  card_id     String
+  author_type String   // 'human' | 'agent'
+  author_id   String
+  emoji       String   // '👍', '❤️', '🎉', etc.
+  created_at  DateTime @default(now())
+  
+  @@unique([card_id, author_id, emoji])
+  @@index([card_id])
+}

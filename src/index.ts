@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import agentsRouter from './routes/agents';
 import templatesRouter from './routes/templates';
 import cardsRouter from './routes/cards';
+import commentsRouter from './routes/comments';
+import reactionsRouter from './routes/reactions';
 
 dotenv.config();
 
@@ -21,6 +23,8 @@ app.get('/health', (_req, res) => {
 app.use('/api/agents', agentsRouter);
 app.use('/api/templates', templatesRouter);
 app.use('/api/cards', cardsRouter);
+app.use('/api/cards', commentsRouter);
+app.use('/api/cards', reactionsRouter);
 
 app.get('/', (_req, res) => {
   res.json({

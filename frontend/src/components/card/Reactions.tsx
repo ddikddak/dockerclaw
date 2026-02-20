@@ -6,7 +6,7 @@ import type { Reaction } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
 
-const EMOJIS = ['👍', '❤️', '🎉', '🚀', '👀'] as const
+const EMOJIS = ['👍', '❤️', '🎉', '🚀', '👀', '✅'] as const
 
 interface ReactionsProps {
   reactions: Reaction[]

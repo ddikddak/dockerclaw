@@ -1,3 +1,5 @@
+import { supabaseClient } from '@/contexts/AuthContext'
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
 
 export type CardType = 'text' | 'code' | 'checklist' | 'image' | 'rich_text' | 'data'
@@ -56,7 +58,7 @@ export interface Reaction {
   author_type: 'human' | 'agent'
   author_id: string
   author_name?: string
-  emoji: '👍' | '❤️' | '🎉' | '🚀' | '👀'
+  emoji: '👍' | '❤️' | '🎉' | '🚀' | '👀' | '✅'
   created_at: string
 }
 
@@ -86,13 +88,39 @@ class ApiClient {
     this.baseUrl = baseUrl
   }
 
+  private async getAuthToken(): Promise<string | null> {
+    try {
+      const { data: { session } } = await supabaseClient.auth.getSession()
+      return session?.access_token ?? null
+    } catch (error) {
+      console.error('Error getting auth token:', error)
+      return null
+    }
+  }
+
   private async fetch<T>(path: string, options?: RequestInit): Promise<T> {
+    const token = await this.getAuthToken()
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    
+    // Copiar headers existents
+    if (options?.headers) {
+      const existingHeaders = options.headers as Record<string, string>
+      Object.keys(existingHeaders).forEach(key => {
+        headers[key] = existingHeaders[key]
+      })
+    }
+    
+    // Afegir token JWT si existeix
+    if (token) {
+      headers['X-API-Key'] = token
+    }
+
     const response = await fetch(`${this.baseUrl}${path}`, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
+      headers,
     })
 
     if (!response.ok) {
