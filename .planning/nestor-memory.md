@@ -13,9 +13,14 @@ dockerclaw-web/frontend/src/app/api/
 │   ├── route.ts               # GET/POST /api/cards
 │   └── [id]/
 │       ├── actions/route.ts   # POST /api/cards/:id/actions (card-level)
+│       ├── comments/route.ts  # GET/POST /api/cards/:id/comments
+│       ├── reactions/route.ts # GET/POST /api/cards/:id/reactions
 │       └── components/
 │           └── [componentId]/
 │               └── actions/route.ts  # POST component-level actions
+├── comments/
+│   └── [id]/
+│       └── route.ts           # DELETE /api/comments/:id
 ├── templates/
 │   └── route.ts               # GET/POST /api/templates
 └── upload/
@@ -28,7 +33,7 @@ dockerclaw-web/frontend/src/components/
 ├── Canvas.tsx                 # Figma-like infinite canvas
 ├── Board.tsx                  # Kanban board
 ├── Column.tsx                 # Kanban column (with mutations)
-├── Card.tsx                   # Card with action buttons
+├── Card.tsx                   # Card with action buttons, comments, reactions
 └── card/
     ├── index.ts               # Barrel exports
     ├── TextComponent.tsx      # Editable text (in-place editing)
@@ -36,7 +41,9 @@ dockerclaw-web/frontend/src/components/
     ├── ChecklistComponent.tsx # Toggle checkboxes
     ├── ImageComponent.tsx     # Upload, preview, lightbox
     ├── RichTextComponent.tsx  # TipTap WYSIWYG editor
-    └── DataComponent.tsx      # JSON tree viewer
+    ├── DataComponent.tsx      # JSON tree viewer
+    ├── Comments.tsx           # Comments section with add/delete
+    └── Reactions.tsx          # Emoji reactions (👍 ❤️ 🎉 🚀 👀)
 ```
 
 ### Library Files
@@ -59,6 +66,11 @@ dockerclaw-web/frontend/src/lib/
 | `/api/cards` | GET | X-API-Key | Llistar cards |
 | `/api/cards` | POST | X-API-Key | Crear card |
 | `/api/cards/:id/actions` | POST | X-API-Key | Card actions (approve, reject, delete, archive, move) |
+| `/api/cards/:id/comments` | GET | X-API-Key | Llistar comentaris |
+| `/api/cards/:id/comments` | POST | X-API-Key | Afegir comentari |
+| `/api/cards/:id/reactions` | GET | X-API-Key | Llistar reaccions |
+| `/api/cards/:id/reactions` | POST | X-API-Key | Toggle reacció (add/remove) |
+| `/api/comments/:id` | DELETE | X-API-Key | Esborrar comentari |
 | `/api/upload` | POST | No | Upload images to Supabase Storage |
 
 ## Components Suportats
@@ -71,6 +83,8 @@ dockerclaw-web/frontend/src/lib/
 | `image` | ImageComponent | Drag-drop upload, preview, lightbox, Supabase Storage |
 | `rich_text` | RichTextComponent | TipTap WYSIWYG editor (bold, italic, headings, lists, links) |
 | `data` | DataComponent | react-json-view-lite tree view, copy JSON |
+| `comments` | Comments | Add, list, delete comments with author info |
+| `reactions` | Reactions | 5 emoji reactions (👍 ❤️ 🎉 🚀 👀) with toggle |
 
 ### Taules
 - **agents**: id, name, email, api_key, webhook_url, created_at
@@ -78,19 +92,38 @@ dockerclaw-web/frontend/src/lib/
 - **cards**: id, template_id, agent_id, data, status, created_at
 - **events**: id, agent_id, type, payload, status, created_at
 - **actions**: id, card_id, agent_id, type, action, payload, status, created_at
+- **comments**: id, card_id, author_type, author_id, author_name, content, created_at, updated_at
+- **reactions**: id, card_id, author_type, author_id, author_name, emoji, created_at
 
-### SQL Migration (Actions Table)
+### SQL Migration (Comments & Reactions Tables)
 ```sql
-CREATE TABLE actions (
+-- Create comments table
+CREATE TABLE comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  card_id UUID REFERENCES cards(id),
-  agent_id UUID REFERENCES agents(id),
-  type TEXT CHECK (type IN ('card_action', 'component_action')),
-  action TEXT NOT NULL,
-  payload JSONB DEFAULT '{}',
-  status TEXT DEFAULT 'processed',
-  created_at TIMESTAMP DEFAULT NOW()
+  card_id UUID REFERENCES cards(id) ON DELETE CASCADE,
+  author_type TEXT CHECK (author_type IN ('human', 'agent')),
+  author_id TEXT NOT NULL,
+  author_name TEXT,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP
 );
+
+-- Create reactions table
+CREATE TABLE reactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  card_id UUID REFERENCES cards(id) ON DELETE CASCADE,
+  author_type TEXT CHECK (author_type IN ('human', 'agent')),
+  author_id TEXT NOT NULL,
+  author_name TEXT,
+  emoji TEXT CHECK (emoji IN ('👍', '❤️', '🎉', '🚀', '👀')),
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(card_id, author_id, emoji)
+);
+
+-- Create indexes for performance
+CREATE INDEX comments_card_id_idx ON comments(card_id);
+CREATE INDEX reactions_card_id_idx ON reactions(card_id);
 ```
 
 ## Accions Implementades
@@ -109,6 +142,11 @@ CREATE TABLE actions (
 - `upload_image` → upload image to Supabase Storage
 - `add_comment` → afegir comentari
 
+### Interactions
+- `add_comment` → POST /api/cards/:id/comments
+- `delete_comment` → DELETE /api/comments/:id
+- `toggle_reaction` → POST /api/cards/:id/reactions (toggle add/remove)
+
 ## Frontend Features
 
 ### In-Place Editing
@@ -122,6 +160,20 @@ CREATE TABLE actions (
 - ❌ Reject (red)
 - 🗑️ Delete (gray)
 - 📋 Archive (gray)
+- 💬 Comments (toggle comments section)
+
+### Comments
+- Secció desplegable sota la card
+- Input textarea amb Cmd+Enter per enviar
+- Llista de comentaris amb autor, data i badge "bot" per agents
+- Delete button per l'autor
+- Scroll area per llistes llargues
+
+### Reactions
+- 5 botons emoji: 👍 ❤️ 🎉 🚀 👀
+- Toggle (highlight blau si usuari ha reaccionat)
+- Count per emoji
+- Compact display al footer de la card
 
 ### Toggle Checkboxes
 - Click directe per toggle
@@ -138,6 +190,20 @@ CREATE TABLE actions (
 - Copy JSON button
 
 ## Històric de Canvis
+
+### 2026-02-20 - Phase 05 Interactive (Comments & Reactions)
+- Creada taula `comments` a Supabase amb author_type, author_id, author_name, content
+- Creada taula `reactions` a Supabase amb emoji constraint (👍 ❤️ 🎉 🚀 👀)
+- Creat endpoint GET/POST /api/cards/:id/comments
+- Creat endpoint DELETE /api/comments/:id
+- Creat endpoint GET/POST /api/cards/:id/reactions (toggle)
+- Creat component Comments.tsx amb add, list, delete
+- Creat component Reactions.tsx amb 5 emojis toggle
+- Creat CompactReactions per display al footer
+- Actualitzat Card.tsx per integrar Comments i Reactions
+- Actualitzat Column.tsx amb mutations per comments/reactions
+- Actualitzat api.ts amb nous tipus Comment, Reaction i mètodes API
+- Polling cada 5 segons per comments/reactions
 
 ### 2026-02-20 - Phase 04 Rich Components
 - Instal·lades dependències: @tiptap/react, prismjs, react-json-view-lite
@@ -183,17 +249,21 @@ CREATE TABLE actions (
 - Zod per validació d'entrades
 - Supabase per queries a base de dades
 - Respostes amb `NextResponse.json()`
+- Usar `getSupabase()` helper async per evitar errors de build amb env vars
 
 ### Frontend Patterns
 - Components amb `editable` prop per activar edició
 - `onSave` i `onToggle` callbacks per comunicar canvis
 - Optimistic updates per millor UX
 - Framer Motion per animacions
+- React Query per data fetching i caching
+- Polling per actualitzacions temps real (5s)
 
 ### Seguretat
 - API keys al header `X-API-Key`
 - Validació que agent només accedeix als seus recursos
 - Sanitització d'inputs amb Zod
+- ON DELETE CASCADE per comments/reactions quan s'esborra card
 
 ## Àrees de Risc
 
@@ -201,9 +271,11 @@ CREATE TABLE actions (
 2. **API Key exposure**: Mai exposar al client, usar server-side calls
 3. **Polling frequency**: Agents han de fer polling raonable (cada 5-10s)
 4. **Race conditions**: Edició simultània de la mateixa card
+5. **Comments/Reactions sync**: Polling pot tenir delay de 5s
 
 ## Tasks Pendents
 - [ ] Configurar RLS policies a Supabase
 - [ ] Implementar rate limiting
 - [ ] WebSocket alternativa a polling
 - [ ] Tests d'integració
+- [ ] Real-time subscriptions per comments/reactions (Supabase Realtime)
