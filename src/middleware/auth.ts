@@ -69,28 +69,42 @@ export async function authenticateUser(
       const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
       
       if (payload.sub) {
+        const userEmail = payload.email || payload.preferred_username || 'unknown';
+        const userId = payload.sub;
+        
         req.user = {
-          id: payload.sub,
-          email: payload.email || payload.preferred_username || 'unknown',
+          id: userId,
+          email: userEmail,
         };
+        
+        // Buscar o crear un agent per aquest usuari
+        // Això permet que els usuaris humans facin servir els endpoints d'agent
+        let agent = await prisma.agent.findUnique({
+          where: { email: userEmail },
+        });
+        
+        if (!agent) {
+          // Crear un agent per aquest usuari humà
+          const crypto = await import('crypto');
+          agent = await prisma.agent.create({
+            data: {
+              name: userEmail.split('@')[0],
+              email: userEmail,
+              api_key: crypto.randomUUID(),
+            },
+          });
+          console.log(`Created new agent for user: ${userEmail}`);
+        }
+        
+        req.agent = agent;
         next();
         return;
       }
     }
     
-    // Si no es pot parsejar el JWT, permetem anonimat per a testing
-    req.user = {
-      id: 'anonymous',
-      email: 'anonymous@dockerclaw.local',
-    };
-    next();
+    res.status(401).json({ error: 'Invalid authentication token' });
   } catch (error) {
     console.error('User auth error:', error);
-    // Fallback per a testing
-    req.user = {
-      id: 'anonymous',
-      email: 'anonymous@dockerclaw.local',
-    };
-    next();
+    res.status(401).json({ error: 'Authentication failed' });
   }
 }

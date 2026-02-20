@@ -16,12 +16,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Settings, Users, Loader2 } from 'lucide-react'
+import { Plus, Settings, Users, Loader2, LogOut, User, Loader2Icon } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useBoardStore } from '@/lib/store'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function Home() {
   const [open, setOpen] = useState(false)
@@ -30,6 +39,19 @@ export default function Home() {
   const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const addCard = useBoardStore((state) => state.addCard)
+  const { user, signOut, isLoading } = useAuth()
+
+  // Mostrar loading mentre es comprova l'autenticació
+  if (isLoading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2Icon className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   const handleCreateCard = async () => {
     if (!title.trim()) return
@@ -70,6 +92,21 @@ export default function Home() {
     }
   }
 
+  const handleLogout = async () => {
+    await signOut()
+  }
+
+  // Obtenir inicials per l'avatar
+  const getInitials = (email: string) => {
+    return email
+      .split('@')[0]
+      .split('.')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
+  }
+
   return (
     <div className="h-screen w-screen flex flex-col">
       {/* Header */}
@@ -99,6 +136,48 @@ export default function Home() {
             </TooltipTrigger>
             <TooltipContent>Settings</TooltipContent>
           </Tooltip>
+
+          {/* User Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <span className="text-xs font-medium">
+                  {user?.email ? getInitials(user.email) : 'U'}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium">My Account</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {user?.email}
+                  </p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="cursor-pointer">
+                <User className="mr-2 h-4 w-4" />
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer">
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                className="cursor-pointer text-red-600 focus:text-red-600" 
+                onClick={handleLogout}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
