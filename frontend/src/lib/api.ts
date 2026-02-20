@@ -1,5 +1,7 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
 
+export type CardType = 'text' | 'code' | 'checklist' | 'image' | 'rich_text' | 'data'
+
 export interface Card {
   id: string
   template_id: string
@@ -7,11 +9,19 @@ export interface Card {
   data: {
     title?: string
     description?: string
-    type?: 'text' | 'code' | 'checklist'
+    type?: CardType
     content?: string
     checklist?: { text: string; checked: boolean }[]
     items?: { text: string; checked: boolean }[]
     language?: string
+    // Image
+    url?: string
+    filename?: string
+    size?: number
+    // Rich text
+    html?: string
+    // Data/JSON
+    json?: object | string
     [key: string]: any
   }
   status: 'pending' | 'in_progress' | 'approved' | 'rejected' | 'archived' | 'deleted'
@@ -25,7 +35,7 @@ export interface CardAction {
 }
 
 export interface ComponentAction {
-  action: 'edit_text' | 'edit_code' | 'toggle_check' | 'add_comment'
+  action: 'edit_text' | 'edit_code' | 'toggle_check' | 'add_comment' | 'upload_image'
   payload: Record<string, any>
 }
 
@@ -146,6 +156,30 @@ class ApiClient {
     return this.executeComponentAction(cardId, componentId, {
       action: 'toggle_check',
       payload: { itemIndex },
+    })
+  }
+
+  async uploadImage(cardId: string, componentId: string, file: File): Promise<ActionResponse> {
+    // First upload to storage API, then update component
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('cardId', cardId)
+    
+    const uploadResponse = await fetch(`${this.baseUrl}/api/upload`, {
+      method: 'POST',
+      body: formData,
+    })
+    
+    if (!uploadResponse.ok) {
+      const error = await uploadResponse.json().catch(() => ({ error: 'Upload failed' }))
+      throw new Error(error.error || 'Failed to upload image')
+    }
+    
+    const { url, filename, size } = await uploadResponse.json()
+    
+    return this.executeComponentAction(cardId, componentId, {
+      action: 'edit_text',
+      payload: { url, filename, size, type: 'image' },
     })
   }
 
