@@ -170,22 +170,22 @@ export function ActivityTimeline({ cardId, limit = 20, showFilters = false }: Ac
                     <span className="text-sm text-muted-foreground">
                       {actionLabels[activity.action]}
                     </span>
-                    {activity.metadata?.emoji && (
+                    {activity.metadata?.emoji ? (
                       <span className="text-base">{String(activity.metadata.emoji)}</span>
-                    )}
+                    ) : null}
                   </div>
 
-                  {activity.metadata?.preview && (
+                  {activity.metadata?.preview ? (
                     <div className="mt-1 text-sm text-muted-foreground bg-muted/50 rounded px-2 py-1">
                       "{String(activity.metadata.preview)}"
                     </div>
-                  )}
+                  ) : null}
 
-                  {activity.metadata?.from && activity.metadata?.to && (
+                  {activity.metadata?.from && activity.metadata?.to ? (
                     <div className="mt-1 text-xs text-muted-foreground">
                       {String(activity.metadata.from)} → {String(activity.metadata.to)}
                     </div>
-                  )}
+                  ) : null}
 
                   <div className="mt-1 text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(activity.created_at))}
