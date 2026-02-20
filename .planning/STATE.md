@@ -1,12 +1,11 @@
 ---
-current_phase: 04-rich-components
-last_action: 2026-02-20 07:57 UTC
-status: complete
+current_phase: 05-interactive
+last_action: 2026-02-20 15:21 UTC
+status: in-progress
 ---
 
 ## Posició Actual
-Fase 04: Rich Components - ✅ COMPLETADA
-Infraestructura Producció - ✅ DESPLEGADA
+Fase 05: Interactive - ✅ IMPLEMENTADA I DESPLEGADA
 
 ## Completat Fase 04:
 - ✅ Image Component (upload, preview, lightbox)
@@ -16,24 +15,36 @@ Infraestructura Producció - ✅ DESPLEGADA
 - ✅ Endpoint /api/upload per imatges
 - ✅ Integració amb Card renderer
 
-## Bugs Arreglats:
-- ✅ BUG-001: Card handlers (Nestor)
-- ✅ BUG-002: API 404 (Nestor)
-- ✅ BUG-003: Checklist field (Nestor)
-- ✅ BUG-004: New Card button (Nestor)
-- ✅ BUG-005: Image upload action (Nestor)
-- ✅ BUG-007: API key error handling (Nestor)
-- ✅ BUG-008: JSON parsing error (Nestor)
+## Completat Fase 05:
+- ✅ Comments (add_comment, llistar, eliminar)
+- ✅ Reactions (emoji amb toggle)
+- ✅ API endpoints /api/cards/:id/comments
+- ✅ API endpoints /api/cards/:id/reactions
+- ✅ Webhooks add_comment i add_reaction
+- ✅ UI components integrats
 
-## Infraestructura:
-- ✅ Frontend Vercel: https://frontend-blue-eta-58.vercel.app
-- ✅ Backend Cloud Run: https://dockerclaw-backend-141346793650.europe-west1.run.app
+## Bugs Arreglats:
+- ✅ BUG-001 a BUG-008 (tots arreglats)
+
+## Infraestructura Producció:
+- ✅ Frontend Vercel: https://frontend-j3yyszol5-ddikddaks-projects.vercel.app
+- ✅ Backend Cloud Run: https://dockerclaw-backend-141346793650.europe-west1.run.app (rev 00008-9t8)
 - ✅ Supabase DB: https://blendizvcpgdxiedjvqk.supabase.co
 - ✅ Secret Manager: SUPABASE_SERVICE_KEY protegit
 
+## Status Producció
+- ✅ Health: OK
+- ✅ Comments: Funcionals
+- ✅ Reactions: Funcionals
+- ✅ Webhooks: Actius
+
 ## Next Steps
-🚀 Començar Fase 05: Interactive (comments, reactions)
+🚀 Fase 05 completada! Considerar:
+- Fase 06: Real-time & History (SSE, audit log)
+- Millores UX/UI
+- Testing addicional
 
 ## Resume Info
-Fase 04 completada en ~13 minuts. 17 fitxers, 2357+ línies.
-Infraestructura desplegada i estable.
+Fase 04 completada en ~13 minuts.
+Fase 05 completada en ~8h (amb breaks).
+Infraestructura 100% operativa amb comments i reactions! 🎉
