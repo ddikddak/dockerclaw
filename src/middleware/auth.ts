@@ -38,6 +38,16 @@ export async function validateApiKey(
     next();
   } catch (error) {
     console.error('Auth error:', error);
+    // P2001 = record not found, other Prisma validation errors
+    // These are client errors (400/401), not server errors (500)
+    if (
+      error instanceof Error && 
+      (error.name === 'PrismaClientKnownRequestError' || 
+       error.name === 'PrismaClientValidationError')
+    ) {
+      res.status(401).json({ error: 'Invalid API key' });
+      return;
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 }
