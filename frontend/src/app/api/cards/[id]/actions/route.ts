@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cardActionSchema } from '@/lib/validation';
 import { validateApiKey, getApiKeyFromRequest } from '@/lib/auth';
+import { logActionExecuted, logCardMoved } from '@/lib/activity';
 
 // Helper to get supabase client
 async function getSupabase() {
@@ -144,6 +145,27 @@ export async function POST(
       },
       status: 'pending',
     });
+
+    // Log activity
+    if (action === 'move') {
+      await logCardMoved(
+        id,
+        'agent',
+        agent.id,
+        card.status,
+        newStatus,
+        agent.name
+      );
+    } else {
+      await logActionExecuted(
+        id,
+        action,
+        'agent',
+        agent.id,
+        agent.name,
+        { previous_status: card.status, new_status: newStatus }
+      );
+    }
 
     return NextResponse.json({
       success: true,

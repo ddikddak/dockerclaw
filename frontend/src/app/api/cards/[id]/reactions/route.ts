@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateApiKey, getApiKeyFromRequest } from '@/lib/auth';
+import { logReactionAdded, logReactionRemoved } from '@/lib/activity';
 
 // Helper to get supabase client
 async function getSupabase() {
@@ -181,6 +182,15 @@ export async function POST(
         status: 'pending',
       });
 
+      // Log activity
+      await logReactionRemoved(
+        id,
+        emoji,
+        reactionAuthorType,
+        authorId,
+        author_name || agent.name
+      );
+
       return NextResponse.json({
         success: true,
         action: 'removed',
@@ -215,6 +225,15 @@ export async function POST(
         },
         status: 'pending',
       });
+
+      // Log activity
+      await logReactionAdded(
+        id,
+        emoji,
+        reactionAuthorType,
+        authorId,
+        author_name || agent.name
+      );
 
       return NextResponse.json({
         success: true,

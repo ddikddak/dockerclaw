@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateApiKey, getApiKeyFromRequest } from '@/lib/auth';
+import { logCommentAdded } from '@/lib/activity';
 
 // Helper to get supabase client
 async function getSupabase() {
@@ -167,6 +168,16 @@ export async function POST(
       },
       status: 'pending',
     });
+
+    // Log activity
+    await logCommentAdded(
+      comment.id,
+      id,
+      author_type === 'human' ? 'human' : 'agent',
+      author_id || agent.id,
+      author_name || agent.name,
+      content.trim()
+    );
 
     return NextResponse.json({
       success: true,

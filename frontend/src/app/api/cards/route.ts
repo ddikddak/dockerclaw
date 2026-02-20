@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createCardSchema } from '@/lib/validation';
 import { validateApiKey, getApiKeyFromRequest } from '@/lib/auth';
+import { logCardCreated } from '@/lib/activity';
 
 // Helper to get supabase client
 async function getSupabase() {
@@ -123,6 +124,15 @@ export async function POST(request: NextRequest) {
     if (error) {
       throw error;
     }
+
+    // Log activity
+    await logCardCreated(
+      card.id,
+      'agent',
+      agent.id,
+      agent.name,
+      { template_id, title: data.title }
+    );
 
     return NextResponse.json(card, { status: 201 });
   } catch (error) {

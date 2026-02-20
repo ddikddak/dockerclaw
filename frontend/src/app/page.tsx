@@ -2,6 +2,7 @@
 
 import { Canvas } from '@/components/Canvas'
 import { DndProvider } from '@/components/DndProvider'
+import { Notifications } from '@/components/Notifications'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -18,6 +19,8 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Notifications />
+
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8">

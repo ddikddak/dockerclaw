@@ -281,4 +281,52 @@ class ApiClient {
   }
 }
 
+  // Activity
+  async getActivity(options?: { 
+    targetId?: string; 
+    targetType?: string; 
+    actorId?: string;
+    action?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ activities: any[] }> {
+    const params = new URLSearchParams()
+    if (options?.targetId) params.set('targetId', options.targetId)
+    if (options?.targetType) params.set('targetType', options.targetType)
+    if (options?.actorId) params.set('actorId', options.actorId)
+    if (options?.action) params.set('action', options.action)
+    if (options?.limit) params.set('limit', options.limit.toString())
+    if (options?.offset) params.set('offset', options.offset.toString())
+    
+    return this.fetch(`/api/activity?${params.toString()}`)
+  }
+
+  // Notifications
+  async getNotifications(options?: { unreadOnly?: boolean; limit?: number }): Promise<{ notifications: any[] }> {
+    const params = new URLSearchParams()
+    if (options?.unreadOnly) params.set('unread', 'true')
+    if (options?.limit) params.set('limit', options.limit.toString())
+    
+    return this.fetch(`/api/notifications?${params.toString()}`)
+  }
+
+  async getUnreadCount(): Promise<{ count: number }> {
+    return this.fetch('/api/notifications?count=true')
+  }
+
+  async markNotificationRead(notificationId: string): Promise<{ success: boolean }> {
+    return this.fetch('/api/notifications', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: notificationId }),
+    })
+  }
+
+  async markAllNotificationsRead(): Promise<{ success: boolean }> {
+    return this.fetch('/api/notifications', {
+      method: 'PATCH',
+      body: JSON.stringify({ all: true }),
+    })
+  }
+}
+
 export const api = new ApiClient(API_URL)

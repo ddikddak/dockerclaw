@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateApiKey, getApiKeyFromRequest } from '@/lib/auth';
+import { logCommentDeleted } from '@/lib/activity';
 
 // Helper to get supabase client
 async function getSupabase() {
@@ -82,6 +83,15 @@ export async function DELETE(
     if (deleteError) {
       throw deleteError;
     }
+
+    // Log activity
+    await logCommentDeleted(
+      id,
+      comment.card_id,
+      comment.author_type,
+      comment.author_id,
+      agent.name
+    );
 
     return NextResponse.json({
       success: true,
