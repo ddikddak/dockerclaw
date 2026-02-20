@@ -2,129 +2,164 @@
 
 ## Mapa del Codi
 
-### Backend API (Node.js + Express + TypeScript)
+### Backend API (Next.js API Routes)
 ```
-dockerclaw-web/
-├── package.json              # Dependencies i scripts
-├── tsconfig.json             # TypeScript config
-├── .env.example              # Variables d'entorn
-├── README.md                 # Documentació API
-├── prisma/
-│   ├── schema.prisma         # Database schema
-│   └── migrations/
-│       └── 20250219190000_init/  # Initial migration
-│           └── migration.sql
-└── src/
-    ├── index.ts              # Entry point Express
-    ├── lib/
-    │   ├── prisma.ts         # Prisma client singleton
-    │   └── validation.ts     # Zod schemas
-    ├── middleware/
-    │   └── auth.ts           # API key validation
-    └── routes/
-        ├── agents.ts         # POST /register, GET /:id/events
-        ├── templates.ts      # POST /, GET /, GET /:id
-        └── cards.ts          # POST /, GET /, GET /:id
+dockerclaw-web/frontend/src/app/api/
+├── agents/
+│   ├── register/route.ts      # POST /api/agents/register
+│   └── [id]/
+│       └── events/route.ts    # GET /api/agents/:id/events (polling)
+├── cards/
+│   ├── route.ts               # GET/POST /api/cards
+│   └── [id]/
+│       ├── actions/route.ts   # POST /api/cards/:id/actions (card-level)
+│       └── components/
+│           └── [componentId]/
+│               └── actions/route.ts  # POST component-level actions
+├── templates/
+│   └── route.ts               # GET/POST /api/templates
+└── upload/
+    └── route.ts               # POST /api/upload (images to Supabase Storage)
 ```
 
-### Frontend (Next.js 15 + React 19 + TypeScript)
+### Frontend Components
 ```
-dockerclaw-web/frontend/
-├── package.json              # Frontend dependencies
-├── next.config.ts            # Next.js config
-├── src/
-│   ├── app/
-│   │   ├── api/sse/route.ts  # SSE API route
-│   │   ├── layout.tsx        # Root layout
-│   │   ├── page.tsx          # Home page
-│   │   └── globals.css       # Global styles
-│   ├── components/
-│   │   ├── Canvas.tsx        # Figma-like infinite canvas
-│   │   ├── Grid.tsx          # Dot grid background
-│   │   ├── ZoomControls.tsx  # Zoom in/out buttons
-│   │   ├── Board.tsx         # Kanban board container
-│   │   ├── Column.tsx        # Kanban column
-│   │   ├── Card.tsx          # Draggable card
-│   │   ├── DndProvider.tsx   # @dnd-kit context
-│   │   ├── Providers.tsx     # App providers wrapper
-│   │   ├── ui/               # shadcn/ui components
-│   │   └── card/             # Card content components
-│   │       ├── TextComponent.tsx
-│   │       ├── CodeComponent.tsx
-│   │       └── ChecklistComponent.tsx
-│   ├── hooks/
-│   │   └── useSSE.ts         # SSE real-time hook
-│   └── lib/
-│       ├── api.ts            # API client
-│       ├── store.ts          # Zustand stores
-│       ├── query-client.ts   # TanStack Query client
-│       ├── supabase.ts       # Supabase client
-│       └── utils.ts          # Utilities
+dockerclaw-web/frontend/src/components/
+├── Canvas.tsx                 # Figma-like infinite canvas
+├── Board.tsx                  # Kanban board
+├── Column.tsx                 # Kanban column (with mutations)
+├── Card.tsx                   # Card with action buttons
+└── card/
+    ├── index.ts               # Barrel exports
+    ├── TextComponent.tsx      # Editable text (in-place editing)
+    ├── CodeComponent.tsx      # Editable code with PrismJS syntax highlight
+    ├── ChecklistComponent.tsx # Toggle checkboxes
+    ├── ImageComponent.tsx     # Upload, preview, lightbox
+    ├── RichTextComponent.tsx  # TipTap WYSIWYG editor
+    └── DataComponent.tsx      # JSON tree viewer
 ```
 
-### Models de Base de Dades (Prisma)
-- **Agent**: id, name, email, api_key, webhook_url, created_at
-- **Template**: id, agent_id, name, schema (JSON), created_at
-- **Card**: id, template_id, agent_id, data (JSON), status, created_at
-- **Event**: id, agent_id, type, payload (JSON), status, created_at
+### Library Files
+```
+dockerclaw-web/frontend/src/lib/
+├── api.ts                     # API client with all methods
+├── auth.ts                    # API key validation
+├── supabase.ts                # Supabase client
+└── validation.ts              # Zod schemas
+```
 
-### API Endpoints Implementats
+## API Endpoints (Next.js API Routes)
 
-| Endpoint | Mètode | Auth | Descripció |
+| Endpoint | Method | Auth | Descripció |
 |----------|--------|------|------------|
 | `/api/agents/register` | POST | No | Registrar nou agent |
-| `/api/agents/:id/events` | GET | X-API-Key | Polling d'events |
-| `/api/templates` | POST | X-API-Key | Crear template |
+| `/api/agents/:id/events` | GET | X-API-Key | Polling d'accions |
 | `/api/templates` | GET | X-API-Key | Llistar templates |
-| `/api/templates/:id` | GET | X-API-Key | Veure template |
-| `/api/cards` | POST | X-API-Key | Crear card |
+| `/api/templates` | POST | X-API-Key | Crear template |
 | `/api/cards` | GET | X-API-Key | Llistar cards |
-| `/api/cards/:id` | GET | X-API-Key | Veure card |
-| `/health` | GET | No | Health check |
+| `/api/cards` | POST | X-API-Key | Crear card |
+| `/api/cards/:id/actions` | POST | X-API-Key | Card actions (approve, reject, delete, archive, move) |
+| `/api/upload` | POST | No | Upload images to Supabase Storage |
 
-## Frontend Stack
+## Components Suportats
 
-### Tech Stack
-- **Framework**: Next.js 15.1 + React 19
-- **Language**: TypeScript 5.x
-- **Styling**: Tailwind CSS v4
-- **UI Components**: shadcn/ui
-- **Animations**: Framer Motion
-- **Drag-Drop**: @dnd-kit/core + sortable
-- **State**: Zustand
-- **Data Fetching**: TanStack Query v5
-- **Database**: Supabase (PostgreSQL)
+| Type | Component | Features |
+|------|-----------|----------|
+| `text` | TextComponent | In-place editing, multiline |
+| `code` | CodeComponent | PrismJS syntax highlight, copy button, language detection |
+| `checklist` | ChecklistComponent | Toggle checkboxes, progress bar |
+| `image` | ImageComponent | Drag-drop upload, preview, lightbox, Supabase Storage |
+| `rich_text` | RichTextComponent | TipTap WYSIWYG editor (bold, italic, headings, lists, links) |
+| `data` | DataComponent | react-json-view-lite tree view, copy JSON |
 
-### Components Principals
+### Taules
+- **agents**: id, name, email, api_key, webhook_url, created_at
+- **templates**: id, agent_id, name, schema, created_at
+- **cards**: id, template_id, agent_id, data, status, created_at
+- **events**: id, agent_id, type, payload, status, created_at
+- **actions**: id, card_id, agent_id, type, action, payload, status, created_at
 
-#### Canvas (`components/Canvas.tsx`)
-- Fons gris (#F5F5F5) amb grid de puntets
-- Zoom amb Ctrl+Scroll (0.1x - 3x)
-- Pan amb Space+Drag o middle mouse
-- Animacions fluides amb Framer Motion
+### SQL Migration (Actions Table)
+```sql
+CREATE TABLE actions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  card_id UUID REFERENCES cards(id),
+  agent_id UUID REFERENCES agents(id),
+  type TEXT CHECK (type IN ('card_action', 'component_action')),
+  action TEXT NOT NULL,
+  payload JSONB DEFAULT '{}',
+  status TEXT DEFAULT 'processed',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
 
-#### Board (`components/Board.tsx`)
-- 3 columnes: Todo, In Progress, Done
-- Integració amb @dnd-kit
-- SSE per updates temps real
-- Polling fallback amb TanStack Query
+## Accions Implementades
 
-#### Card (`components/Card.tsx`)
-- Draggable amb @dnd-kit/sortable
-- 3 tipus de contingut: text, code, checklist
-- Preview segons tipus
+### Card-Level Actions
+- `approve` → status: 'approved'
+- `reject` → status: 'rejected'
+- `delete` → status: 'deleted'
+- `archive` → status: 'archived'
+- `move` → canviar columna/status
 
-#### ZoomControls (`components/ZoomControls.tsx`)
-- Botons +/- per zoom
-- Indicador de percentatge
-- Reset zoom button
+### Component-Level Actions
+- `edit_text` → update card.data.text
+- `edit_code` → update card.data.code
+- `toggle_check` → toggle checklist item
+- `upload_image` → upload image to Supabase Storage
+- `add_comment` → afegir comentari
 
-### Keyboard Shortcuts
-- **Space + Drag**: Pan canvas
-- **Ctrl + Scroll**: Zoom in/out
-- **Middle mouse**: Pan canvas
+## Frontend Features
+
+### In-Place Editing
+- **Text**: Doble clic per editar, Ctrl+Enter per guardar, Esc per cancel·lar
+- **Code**: Doble clic per editar, Ctrl+S per guardar, Esc per cancel·lar
+- **Rich Text**: Doble clic per editar, toolbar amb bold/italic/headings/lists/links, Ctrl+Enter per guardar
+- **Image**: Drag-drop upload, click per lightbox, click icona per canviar
+
+### Action Buttons
+- ✅ Approve (green)
+- ❌ Reject (red)
+- 🗑️ Delete (gray)
+- 📋 Archive (gray)
+
+### Toggle Checkboxes
+- Click directe per toggle
+- Optimistic update (UI first)
+- Progress bar visual
+
+### Syntax Highlight
+- PrismJS amb tema 'tomorrow'
+- Suport: TypeScript, JavaScript, JSX, TSX, Python, Bash, JSON, CSS, SQL, YAML, Markdown
+- Copy to clipboard button
+
+### JSON Viewer
+- react-json-view-lite amb tree view col·lapsable
+- Copy JSON button
 
 ## Històric de Canvis
+
+### 2026-02-20 - Phase 04 Rich Components
+- Instal·lades dependències: @tiptap/react, prismjs, react-json-view-lite
+- Creat ImageComponent amb upload drag-drop, preview, i lightbox
+- Actualitzat CodeComponent amb PrismJS syntax highlight i copy button
+- Creat RichTextComponent amb TipTap editor WYSIWYG
+- Creat DataComponent amb react-json-view-lite per JSON
+- Creat endpoint /api/upload per pujar imatges a Supabase Storage
+- Actualitzat Card.tsx per suportar nous tipus (image, rich_text, data)
+- Actualitzat Column.tsx amb mutations per tots els components
+- Afegit sonner per notificacions toast
+
+### 2025-02-20 - Phase 03 Actions & Webhooks
+- Migrated Express backend to Next.js API Routes
+- Created Actions table in Supabase
+- Implemented card-level actions (approve, reject, delete, archive, move)
+- Implemented component-level actions (edit_text, edit_code, toggle_check)
+- Added polling endpoint for agents: GET /api/agents/:id/events
+- Frontend: In-place editing for text and code
+- Frontend: Action buttons (approve, reject, delete, archive)
+- Frontend: Toggle checkboxes with optimistic updates
+- Updated API client with all new methods
 
 ### 2025-02-19 - Phase 02 Frontend Foundation
 - Setup Next.js 15 + React 19 + Tailwind v4 + shadcn/ui
@@ -132,9 +167,6 @@ dockerclaw-web/frontend/
 - Implementació Canvas Figma-like amb zoom/pan/grid
 - Kanban drag-drop amb @dnd-kit
 - Card components (Text, Code, Checklist)
-- SSE hook per updates temps real
-- UI polish (zoom controls, tooltips, animations)
-- Build configurat per Vercel
 
 ### 2025-02-19 - Phase 01 API Templates
 - Setup projecte Node.js + Express + TypeScript
@@ -146,42 +178,32 @@ dockerclaw-web/frontend/
 
 ## Patterns i Decisions
 
-### Frontend Patterns
-- **Zustand stores separats**: CanvasStore (UI state) i BoardStore (data)
-- **Optimistic updates**: UI s'actualitza abans de la resposta API
-- **SSR-safe**: Hooks com useSSE comproven `typeof window`
-- **Component composition**: Cards renderitzen diferents components segons tipus
-
-### Validació
+### API Routes Pattern
+- Validació d'API key via `getApiKeyFromRequest` i `validateApiKey`
 - Zod per validació d'entrades
-- Validació d'API key via middleware `validateApiKey`
-- Tipus `AuthenticatedRequest` extén Request amb agent
+- Supabase per queries a base de dades
+- Respostes amb `NextResponse.json()`
 
-### Base de Dades
-- Prisma client com a singleton a `lib/prisma.ts`
-- UUIDs per tots els IDs
-- JSON per schema de templates i data de cards
-- Status per events i cards (pending, delivered)
+### Frontend Patterns
+- Components amb `editable` prop per activar edició
+- `onSave` i `onToggle` callbacks per comunicar canvis
+- Optimistic updates per millor UX
+- Framer Motion per animacions
 
 ### Seguretat
-- API keys úniques per agent (format: `dk_${uuid}`)
+- API keys al header `X-API-Key`
 - Validació que agent només accedeix als seus recursos
-- Headers CORS configurats
+- Sanitització d'inputs amb Zod
 
 ## Àrees de Risc
 
-1. **Tipus JSON de Prisma**: Es fa cast a `any` per evitar errors de tipus
-2. **Params d'Express**: Cal cast manual a `{ id: string }` per evitar `string | string[]`
-3. **Migrations**: Requereixen PostgreSQL configurat amb DATABASE_URL
-4. **EventSource SSR**: useSSE comprova `typeof window` per evitar errors SSR
-5. **API URL**: Depèn de `NEXT_PUBLIC_API_URL` configurat correctament
+1. **Supabase RLS**: Assegurar que Row Level Security estigui configurat correctament
+2. **API Key exposure**: Mai exposar al client, usar server-side calls
+3. **Polling frequency**: Agents han de fer polling raonable (cada 5-10s)
+4. **Race conditions**: Edició simultània de la mateixa card
 
 ## Tasks Pendents
-- [ ] Tests unitaris i d'integració
-- [ ] Implementar webhooks per notificar agents
-- [ ] Afegir paginació a llistats
-- [ ] Rate limiting
-- [ ] Logs estructurats
-- [ ] WebSocket alternativa a SSE
-- [ ] Edició inline de cards
-- [ ] Filtres i cerca de cards
+- [ ] Configurar RLS policies a Supabase
+- [ ] Implementar rate limiting
+- [ ] WebSocket alternativa a polling
+- [ ] Tests d'integració
