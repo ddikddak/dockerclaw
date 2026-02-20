@@ -6,9 +6,6 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  turbopack: {
-    root: '/home/didac/projects/dockerclaw/dockerclaw-web/frontend',
-  },
 };
 
 export default nextConfig;
