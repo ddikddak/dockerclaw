@@ -1,27 +1,29 @@
 ---
-current_phase: 02-frontend-foundation
-last_action: 2026-02-19 19:52 UTC
+current_phase: 03-actions-webhooks
+last_action: 2026-02-19 23:59 UTC
 status: plans-ready
 ---
 
 ## Posició Actual
-Fase 02: Frontend Foundation - Discussió completada (5 preguntes respondides)
+Fase 03: Actions & Webhooks - Discussió completada (5 preguntes respondides)
 
 ## Decisions preses:
-- Stack: Next.js 15 + React 19 + Tailwind v4 + shadcn/ui
-- UI: Figma-like (canvas infinit, zoom, grid)
-- Features: Kanban drag-drop, SSE temps real
-- Deploy: Vercel (frontend + API routes + Supabase)
-- Qualitat: Professional (2-3 dies, zoom infinit, animacions fluides)
+- Comunicació: Polling (GET) per agents
+- Accions: Completes (approve, reject, edit, toggle, move, etc.)
+- UX: Accions inherents als components (in-place editing)
+- Backend: Next.js API Routes + Supabase (tot a Vercel)
+- Qualitat: Complet (2-3 dies, testing + polish)
 
 ## Blockers
 Cap.
 
 ## Next Steps
-1. Spawn Nestor per implementar Fase 02
-2. Setup Next.js + shadcn/ui + Supabase
-3. Implementar canvas Figma-like amb drag-drop
+1. Spawn Nestor per implementar Fase 03
+2. Migrar backend Express a Next.js API Routes
+3. Implementar sistema d'accions i polling
+4. Testing complet
 
 ## Resume Info
-Fase 01 completada (Nestor: Express API).
-Fase 02: Frontend professional amb canvas Figma-like.
+Fase 01: Backend Express ✅
+Fase 02: Frontend Canvas + Kanban ✅
+Fase 03: Actions & Webhooks (tancar loop Agent ↔ Human)
