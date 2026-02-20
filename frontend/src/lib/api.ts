@@ -39,6 +39,27 @@ export interface ComponentAction {
   payload: Record<string, any>
 }
 
+export interface Comment {
+  id: string
+  card_id: string
+  author_type: 'human' | 'agent'
+  author_id: string
+  author_name: string
+  content: string
+  created_at: string
+  updated_at?: string
+}
+
+export interface Reaction {
+  id: string
+  card_id: string
+  author_type: 'human' | 'agent'
+  author_id: string
+  author_name?: string
+  emoji: '👍' | '❤️' | '🎉' | '🚀' | '👀'
+  created_at: string
+}
+
 export interface ActionResponse {
   success: boolean
   action: {
@@ -208,6 +229,54 @@ class ApiClient {
       headers: {
         'X-API-Key': apiKey,
       },
+    })
+  }
+
+  // Comments
+  async getComments(cardId: string): Promise<{ comments: Comment[] }> {
+    return this.fetch(`/api/cards/${cardId}/comments`)
+  }
+
+  async addComment(
+    cardId: string, 
+    content: string, 
+    options?: { author_type?: 'human' | 'agent'; author_id?: string; author_name?: string }
+  ): Promise<{ success: boolean; comment: Comment }> {
+    return this.fetch(`/api/cards/${cardId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({
+        content,
+        author_type: options?.author_type || 'human',
+        author_id: options?.author_id,
+        author_name: options?.author_name,
+      }),
+    })
+  }
+
+  async deleteComment(commentId: string): Promise<{ success: boolean; message: string }> {
+    return this.fetch(`/api/comments/${commentId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // Reactions
+  async getReactions(cardId: string): Promise<{ reactions: Reaction[] }> {
+    return this.fetch(`/api/cards/${cardId}/reactions`)
+  }
+
+  async toggleReaction(
+    cardId: string, 
+    emoji: Reaction['emoji'],
+    options?: { author_type?: 'human' | 'agent'; author_id?: string; author_name?: string }
+  ): Promise<{ success: boolean; action: 'added' | 'removed'; reaction?: Reaction }> {
+    return this.fetch(`/api/cards/${cardId}/reactions`, {
+      method: 'POST',
+      body: JSON.stringify({
+        emoji,
+        author_type: options?.author_type || 'human',
+        author_id: options?.author_id,
+        author_name: options?.author_name,
+      }),
     })
   }
 }

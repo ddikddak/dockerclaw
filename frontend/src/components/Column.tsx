@@ -1,10 +1,11 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { motion } from 'framer-motion'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Card as CardType } from '@/lib/api'
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
+import type { Card as CardType, Comment, Reaction } from '@/lib/api'
 import { api } from '@/lib/api'
 import { useBoardStore } from '@/lib/store'
 import { Card } from './Card'
@@ -20,6 +21,74 @@ interface ColumnProps {
   index: number
 }
 
+// Hook to fetch comments and reactions for cards
+function useCardInteractions(cardIds: string[]) {
+  const [commentsMap, setCommentsMap] = useState<Record<string, Comment[]>>({})
+  const [reactionsMap, setReactionsMap] = useState<Record<string, Reaction[]>>({})
+
+  const { data: commentsData } = useQuery({
+    queryKey: ['comments', cardIds],
+    queryFn: async () => {
+      const results: Record<string, Comment[]> = {}
+      await Promise.all(
+        cardIds.map(async (cardId) => {
+          try {
+            const { comments } = await api.getComments(cardId)
+            results[cardId] = comments
+          } catch (error) {
+            results[cardId] = []
+          }
+        })
+      )
+      return results
+    },
+    enabled: cardIds.length > 0,
+    refetchInterval: 5000, // Refetch every 5 seconds
+  })
+
+  const { data: reactionsData } = useQuery({
+    queryKey: ['reactions', cardIds],
+    queryFn: async () => {
+      const results: Record<string, Reaction[]> = {}
+      await Promise.all(
+        cardIds.map(async (cardId) => {
+          try {
+            const { reactions } = await api.getReactions(cardId)
+            results[cardId] = reactions
+          } catch (error) {
+            results[cardId] = []
+          }
+        })
+      )
+      return results
+    },
+    enabled: cardIds.length > 0,
+    refetchInterval: 5000, // Refetch every 5 seconds
+  })
+
+  useEffect(() => {
+    if (commentsData) {
+      setCommentsMap(commentsData)
+    }
+  }, [commentsData])
+
+  useEffect(() => {
+    if (reactionsData) {
+      setReactionsMap(reactionsData)
+    }
+  }, [reactionsData])
+
+  const updateComments = (cardId: string, comments: Comment[]) => {
+    setCommentsMap((prev) => ({ ...prev, [cardId]: comments }))
+  }
+
+  const updateReactions = (cardId: string, reactions: Reaction[]) => {
+    setReactionsMap((prev) => ({ ...prev, [cardId]: reactions }))
+  }
+
+  return { commentsMap, reactionsMap, updateComments, updateReactions }
+}
+
 export function Column({ id, title, color, cards, index }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id,
@@ -31,6 +100,9 @@ export function Column({ id, title, color, cards, index }: ColumnProps) {
   
   const { updateCard, deleteCard } = useBoardStore()
   const queryClient = useQueryClient()
+
+  const cardIds = cards.map((c) => c.id)
+  const { commentsMap, reactionsMap, updateComments, updateReactions } = useCardInteractions(cardIds)
 
   // Card-level actions
   const approveMutation = useMutation<ActionResponse, Error, string>({
@@ -127,6 +199,69 @@ export function Column({ id, title, color, cards, index }: ColumnProps) {
     },
   })
 
+  // Comments mutations
+  const addCommentMutation = useMutation<
+    { success: boolean; comment: Comment },
+    Error,
+    { cardId: string; content: string }
+  >({
+    mutationFn: ({ cardId, content }) => api.addComment(cardId, content),
+    onSuccess: (data, variables) => {
+      const currentComments = commentsMap[variables.cardId] || []
+      updateComments(variables.cardId, [...currentComments, data.comment])
+      toast.success('Comment added')
+    },
+    onError: (error) => {
+      toast.error('Failed to add comment')
+    },
+  })
+
+  const deleteCommentMutation = useMutation<
+    { success: boolean; message: string },
+    Error,
+    { cardId: string; commentId: string }
+  >({
+    mutationFn: ({ commentId }) => api.deleteComment(commentId),
+    onSuccess: (data, variables) => {
+      const currentComments = commentsMap[variables.cardId] || []
+      updateComments(
+        variables.cardId,
+        currentComments.filter((c) => c.id !== variables.commentId)
+      )
+      toast.success('Comment deleted')
+    },
+    onError: (error) => {
+      toast.error('Failed to delete comment')
+    },
+  })
+
+  // Reactions mutation
+  const toggleReactionMutation = useMutation<
+    { success: boolean; action: 'added' | 'removed'; reaction?: Reaction },
+    Error,
+    { cardId: string; emoji: Reaction['emoji'] }
+  >({
+    mutationFn: ({ cardId, emoji }) => api.toggleReaction(cardId, emoji),
+    onSuccess: (data, variables) => {
+      const currentReactions = reactionsMap[variables.cardId] || []
+      let newReactions: Reaction[]
+
+      if (data.action === 'added' && data.reaction) {
+        newReactions = [...currentReactions, data.reaction]
+      } else {
+        // Remove reaction by current user with this emoji
+        newReactions = currentReactions.filter(
+          (r) => !(r.emoji === variables.emoji && r.author_id === 'current-user')
+        )
+      }
+
+      updateReactions(variables.cardId, newReactions)
+    },
+    onError: (error) => {
+      toast.error('Failed to toggle reaction')
+    },
+  })
+
   const handleApprove = async (cardId: string) => {
     await approveMutation.mutateAsync(cardId)
   }
@@ -157,6 +292,18 @@ export function Column({ id, title, color, cards, index }: ColumnProps) {
 
   const handleUploadImage = async (cardId: string, componentId: string, file: File) => {
     await uploadImageMutation.mutateAsync({ cardId, componentId, file })
+  }
+
+  const handleAddComment = async (cardId: string, content: string) => {
+    await addCommentMutation.mutateAsync({ cardId, content })
+  }
+
+  const handleDeleteComment = async (cardId: string, commentId: string) => {
+    await deleteCommentMutation.mutateAsync({ cardId, commentId })
+  }
+
+  const handleToggleReaction = async (cardId: string, emoji: Reaction['emoji']) => {
+    await toggleReactionMutation.mutateAsync({ cardId, emoji })
   }
 
   return (
@@ -190,6 +337,9 @@ export function Column({ id, title, color, cards, index }: ColumnProps) {
               key={card.id}
               card={card}
               index={cardIndex}
+              comments={commentsMap[card.id] || []}
+              reactions={reactionsMap[card.id] || []}
+              currentUserId="current-user"
               onApprove={id === 'pending' || id === 'in_progress' ? handleApprove : undefined}
               onReject={id === 'pending' || id === 'in_progress' ? handleReject : undefined}
               onArchive={id !== 'archived' ? handleArchive : undefined}
@@ -198,6 +348,9 @@ export function Column({ id, title, color, cards, index }: ColumnProps) {
               onEditCode={handleEditCode}
               onToggleCheck={handleToggleCheck}
               onUploadImage={handleUploadImage}
+              onAddComment={handleAddComment}
+              onDeleteComment={handleDeleteComment}
+              onToggleReaction={handleToggleReaction}
             />
           ))}
         </SortableContext>

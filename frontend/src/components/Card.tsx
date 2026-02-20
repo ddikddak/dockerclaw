@@ -4,11 +4,11 @@ import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { Card as CardType } from '@/lib/api'
+import type { Card as CardType, Comment, Reaction } from '@/lib/api'
 import { Card as CardUI } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Check, X, Trash2, Archive, Loader2 } from 'lucide-react'
+import { Check, X, Trash2, Archive, Loader2, MessageCircle } from 'lucide-react'
 import {
   TextComponent,
   CodeComponent,
@@ -16,11 +16,17 @@ import {
   ImageComponent,
   RichTextComponent,
   DataComponent,
+  Comments,
+  Reactions,
+  CompactReactions,
 } from './card'
 
 interface CardProps {
   card: CardType
   index: number
+  comments?: Comment[]
+  reactions?: Reaction[]
+  currentUserId?: string
   onApprove?: (id: string) => Promise<void>
   onReject?: (id: string) => Promise<void>
   onDelete?: (id: string) => Promise<void>
@@ -29,11 +35,17 @@ interface CardProps {
   onEditCode?: (id: string, componentId: string, code: string) => Promise<void>
   onToggleCheck?: (id: string, componentId: string, itemIndex: number, checked: boolean) => Promise<void>
   onUploadImage?: (id: string, componentId: string, file: File) => Promise<void>
+  onAddComment?: (cardId: string, content: string) => Promise<void>
+  onDeleteComment?: (cardId: string, commentId: string) => Promise<void>
+  onToggleReaction?: (cardId: string, emoji: Reaction['emoji']) => Promise<void>
 }
 
 export function Card({
   card,
   index,
+  comments = [],
+  reactions = [],
+  currentUserId,
   onApprove,
   onReject,
   onDelete,
@@ -42,9 +54,13 @@ export function Card({
   onEditCode,
   onToggleCheck,
   onUploadImage,
+  onAddComment,
+  onDeleteComment,
+  onToggleReaction,
 }: CardProps) {
   const [isHovered, setIsHovered] = useState(false)
   const [isProcessing, setIsProcessing] = useState<string | null>(null)
+  const [showComments, setShowComments] = useState(false)
 
   const {
     attributes,
@@ -104,6 +120,21 @@ export function Card({
   const handleUploadImage = async (componentId: string, file: File) => {
     if (!onUploadImage) return
     await onUploadImage(card.id, componentId, file)
+  }
+
+  const handleAddComment = async (content: string) => {
+    if (!onAddComment) return
+    await onAddComment(card.id, content)
+  }
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!onDeleteComment) return
+    await onDeleteComment(card.id, commentId)
+  }
+
+  const handleToggleReaction = async (emoji: Reaction['emoji']) => {
+    if (!onToggleReaction) return
+    await onToggleReaction(card.id, emoji)
   }
 
   const renderContent = () => {
@@ -186,6 +217,9 @@ export function Card({
     }
   }
 
+  const hasInteractions = onAddComment || onToggleReaction
+  const hasReactions = reactions.length > 0
+
   return (
     <motion.div
       ref={setNodeRef}
@@ -223,17 +257,44 @@ export function Card({
         {/* Card Content */}
         <div className="text-sm text-gray-600">{renderContent()}</div>
 
+        {/* Reactions Bar */}
+        {hasInteractions && (
+          <div className="mt-3 pt-2 border-t">
+            <Reactions
+              reactions={reactions}
+              cardId={card.id}
+              currentUserId={currentUserId}
+              onToggleReaction={onToggleReaction ? handleToggleReaction : undefined}
+            />
+          </div>
+        )}
+
         {/* Action Buttons */}
         <AnimatePresence>
           {(isHovered || isProcessing) &&
-            (onApprove || onReject || onDelete || onArchive) && (
+            (onApprove || onReject || onDelete || onArchive || hasInteractions) && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
                 transition={{ duration: 0.15 }}
-                className="mt-3 pt-2 border-t flex gap-2 justify-end"
+                className="mt-3 pt-2 border-t flex gap-2 justify-end flex-wrap"
               >
+                {hasInteractions && (
+                  <Button
+                    size="sm"
+                    variant={showComments ? 'default' : 'outline'}
+                    className={`h-7 px-2 ${showComments ? 'bg-blue-500 hover:bg-blue-600' : 'text-gray-600'}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowComments(!showComments)
+                    }}
+                  >
+                    <MessageCircle className="h-3 w-3 mr-1" />
+                    {comments.length > 0 ? `${comments.length}` : 'Comments'}
+                  </Button>
+                )}
+
                 {onApprove && (
                   <Button
                     size="sm"
@@ -316,12 +377,37 @@ export function Card({
             )}
         </AnimatePresence>
 
+        {/* Comments Section */}
+        <AnimatePresence>
+          {showComments && hasInteractions && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="mt-3 pt-3 border-t overflow-hidden"
+            >
+              <Comments
+                comments={comments}
+                cardId={card.id}
+                currentUserId={currentUserId}
+                onAddComment={onAddComment ? handleAddComment : undefined}
+                onDeleteComment={onDeleteComment ? handleDeleteComment : undefined}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Card Footer */}
-        <div className="mt-3 pt-2 border-t text-xs text-gray-400 flex justify-between">
+        <div className="mt-3 pt-2 border-t text-xs text-gray-400 flex justify-between items-center">
           <span>{new Date(card.created_at).toLocaleDateString()}</span>
-          <span className="truncate max-w-[100px]">
-            {card.agent_id.slice(0, 8)}
-          </span>
+          <div className="flex items-center gap-2">
+            {/* Compact Reactions Display */}
+            <CompactReactions reactions={reactions} currentUserId={currentUserId} />
+            <span className="truncate max-w-[100px]">
+              {card.agent_id.slice(0, 8)}
+            </span>
+          </div>
         </div>
       </CardUI>
     </motion.div>
