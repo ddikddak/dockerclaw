@@ -233,6 +233,27 @@ class ApiClient {
     return { templates: data || [] }
   }
 
+  // Activity
+  async getActivity(options?: { targetId?: string; limit?: number }): Promise<{ activities: any[] }> {
+    let query = supabase
+      .from('Activity')
+      .select('*')
+      .order('created_at', { ascending: false })
+    
+    if (options?.targetId) {
+      query = query.eq('target_id', options.targetId)
+    }
+    
+    if (options?.limit) {
+      query = query.limit(options.limit)
+    }
+    
+    const { data, error } = await query
+    
+    if (error) throw new Error(error.message)
+    return { activities: data || [] }
+  }
+
   // Upload
   async uploadImage(file: File): Promise<{ url: string; filename: string; size: number }> {
     const filename = `${Date.now()}-${file.name}`
