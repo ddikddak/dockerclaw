@@ -1,8 +1,12 @@
 import { supabaseClient } from '@/contexts/AuthContext'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dockerclaw-backend-141346793650.europe-west1.run.app'
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || ''
-// Trigger redeploy
+
+// Validate API_URL is configured
+if (!API_URL) {
+  throw new Error('NO ENV VARIABLE found: NEXT_PUBLIC_API_URL is not configured. Please set it in Vercel environment variables.')
+}
 
 export type CardType = 'text' | 'code' | 'checklist' | 'image' | 'rich_text' | 'data'
 
