@@ -132,7 +132,58 @@ router.delete('/:id', authenticateUser, async (req, res) => {
 });
 
 /**
- * POST /api/keys/validate
+ * POST /api/keys/bootstrap
+ * Crea la PRIMERA API key sense autenticació (només si no n'hi ha cap)
+ * Això permet a l'usuari inicial configurar la seva primera key
+ */
+router.post('/bootstrap', async (req, res) => {
+  try {
+    const { name } = req.body;
+    
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      res.status(400).json({ error: 'Name is required for the API key' });
+      return;
+    }
+    
+    // Comprovar si ja existeix alguna key activa
+    const existingKeys = await prisma.apiKey.count({
+      where: { isActive: true },
+    });
+    
+    // Si ja hi ha keys, requerir autenticació
+    if (existingKeys > 0) {
+      res.status(403).json({ 
+        error: 'Bootstrap not allowed. API keys already exist. Use authenticated endpoint.',
+        keysExist: true,
+      });
+      return;
+    }
+    
+    const { fullKey, keyHash, keyPrefix } = generateApiKey();
+    
+    const apiKey = await prisma.apiKey.create({
+      data: {
+        name: name.trim(),
+        keyHash,
+        keyPrefix,
+        isActive: true,
+      },
+    });
+    
+    res.status(201).json({
+      id: apiKey.id,
+      name: apiKey.name,
+      keyPrefix: apiKey.keyPrefix,
+      fullKey, // ⚠️ Només es mostra aquesta vegada!
+      isActive: apiKey.isActive,
+      createdAt: apiKey.createdAt,
+      message: 'First API key created successfully. Save this key - you will not see it again!',
+    });
+  } catch (error) {
+    console.error('Error creating bootstrap API key:', error);
+    res.status(500).json({ error: 'Failed to create API key' });
+  }
+});
  * Valida una API key (per usar des del frontend)
  */
 router.post('/validate', async (req, res) => {

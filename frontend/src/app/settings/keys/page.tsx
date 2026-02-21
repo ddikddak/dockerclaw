@@ -67,7 +67,14 @@ export default function ApiKeysPage() {
 
     setIsCreating(true)
     try {
-      const data = await api.createApiKey(newKeyName.trim())
+      // Intentar bootstrap primer (per primera key sense autenticació)
+      let data
+      try {
+        data = await api.bootstrapApiKey(newKeyName.trim())
+      } catch (error: any) {
+        // Si bootstrap falla, usar endpoint autenticat
+        data = await api.createApiKey(newKeyName.trim())
+      }
       
       // Mostrar la nova key (només aquesta vegada!)
       setNewKeyFull(data.fullKey)

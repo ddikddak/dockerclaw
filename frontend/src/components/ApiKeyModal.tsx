@@ -35,8 +35,18 @@ export function ApiKeyModal({ isOpen, onClose, onKeyConfigured }: ApiKeyModalPro
 
     setIsCreating(true)
     try {
-      // Per crear la primera key, usem el client API
-      const data = await api.createApiKey(newKeyName.trim())
+      // Intentar crear amb bootstrap (sense autenticació) per primera key
+      let data
+      try {
+        data = await api.bootstrapApiKey(newKeyName.trim())
+      } catch (error: any) {
+        // Si bootstrap falla (ja hi ha keys), intentar amb autenticació
+        if (error.message?.includes('already exist')) {
+          data = await api.createApiKey(newKeyName.trim())
+        } else {
+          throw error
+        }
+      }
       
       setNewKeyFull(data.fullKey)
       setMode('success')
