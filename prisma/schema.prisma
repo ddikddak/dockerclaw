@@ -78,3 +78,16 @@ model Reaction {
   @@unique([card_id, author_id, emoji])
   @@index([card_id])
 }
+
+model ApiKey {
+  id         String   @id @default(uuid())
+  name       String
+  keyHash    String   @unique
+  keyPrefix  String   // Primeres 8 caràcters per mostrar (dk_xxxxxx)
+  isActive   Boolean  @default(true)
+  lastUsedAt DateTime?
+  createdAt  DateTime @default(now())
+  
+  @@index([isActive])
+  @@index([keyHash])
+}

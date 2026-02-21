@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
+import crypto from 'crypto';
 
 export interface AuthenticatedRequest extends Request {
   agent?: {
@@ -14,8 +15,16 @@ export interface AuthenticatedRequest extends Request {
     id: string;
     email: string;
   };
+  apiKeyInfo?: {
+    id: string;
+    name: string;
+  };
 }
 
+/**
+ * Valida una API key contra la taula ApiKey (nou sistema)
+ * o contra la taula Agent (sistema antic per compatibilitat)
+ */
 export async function validateApiKey(
   req: AuthenticatedRequest,
   res: Response,
@@ -29,6 +38,54 @@ export async function validateApiKey(
   }
 
   try {
+    // 1. Primer intentar validar contra el nou sistema (ApiKey)
+    const keyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
+    
+    const apiKeyRecord = await prisma.apiKey.findUnique({
+      where: { keyHash },
+    });
+
+    if (apiKeyRecord) {
+      if (!apiKeyRecord.isActive) {
+        res.status(401).json({ error: 'API key has been revoked' });
+        return;
+      }
+
+      // Guardar info de la API key
+      req.apiKeyInfo = {
+        id: apiKeyRecord.id,
+        name: apiKeyRecord.name,
+      };
+
+      // Actualitzar lastUsedAt (de forma asíncrona sense esperar)
+      prisma.apiKey.update({
+        where: { id: apiKeyRecord.id },
+        data: { lastUsedAt: new Date() },
+      }).catch(err => console.error('Failed to update lastUsedAt:', err));
+
+      // Buscar o crear un agent associat a aquesta API key
+      // Per mantenir compatibilitat amb el sistema existent
+      let agent = await prisma.agent.findFirst({
+        where: { api_key: apiKey },
+      });
+
+      if (!agent) {
+        // Crear un agent temporal per aquesta API key
+        agent = await prisma.agent.create({
+          data: {
+            name: apiKeyRecord.name,
+            email: `apikey_${apiKeyRecord.id}@dockerclaw.local`,
+            api_key: apiKey,
+          },
+        });
+      }
+
+      req.agent = agent;
+      next();
+      return;
+    }
+
+    // 2. Fallback al sistema antic (Agent.api_key per compatibilitat)
     const agent = await prisma.agent.findUnique({
       where: { api_key: apiKey },
     });

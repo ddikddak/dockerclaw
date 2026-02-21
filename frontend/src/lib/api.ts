@@ -82,6 +82,17 @@ export interface ActionResponse {
   }
 }
 
+// Obtenir API key des de localStorage o variable d'entorn
+function getApiKey(): string {
+  // En el browser, intentem obtenir-la del localStorage
+  if (typeof window !== 'undefined') {
+    const storedKey = localStorage.getItem('dockerclaw_api_key')
+    if (storedKey) return storedKey
+  }
+  // Fallback a la variable d'entorn (per compatibilitat)
+  return API_KEY
+}
+
 class ApiClient {
   private baseUrl: string
 
@@ -112,9 +123,10 @@ class ApiClient {
       })
     }
     
-    // Afegir API key si està configurada
-    if (API_KEY) {
-      headers['X-API-Key'] = API_KEY
+    // Afegir API key - prioritat a localStorage, després variable d'entorn
+    const apiKey = getApiKey()
+    if (apiKey) {
+      headers['X-API-Key'] = apiKey
     }
 
     const response = await fetch(`${this.baseUrl}${path}`, {
@@ -213,8 +225,16 @@ class ApiClient {
     formData.append('file', file)
     formData.append('cardId', cardId)
     
+    // Per upload, necessitem afegir la API key manualment
+    const apiKey = getApiKey()
+    const uploadHeaders: Record<string, string> = {}
+    if (apiKey) {
+      uploadHeaders['X-API-Key'] = apiKey
+    }
+    
     const uploadResponse = await fetch(`${this.baseUrl}/api/upload`, {
       method: 'POST',
+      headers: uploadHeaders,
       body: formData,
     })
     
@@ -351,6 +371,24 @@ class ApiClient {
     return this.fetch('/api/notifications', {
       method: 'PATCH',
       body: JSON.stringify({ all: true }),
+    })
+  }
+
+  // API Keys
+  async getApiKeys(): Promise<{ keys: any[] }> {
+    return this.fetch('/api/keys')
+  }
+
+  async createApiKey(name: string): Promise<any> {
+    return this.fetch('/api/keys', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    })
+  }
+
+  async revokeApiKey(id: string): Promise<any> {
+    return this.fetch(`/api/keys/${id}`, {
+      method: 'DELETE',
     })
   }
 }

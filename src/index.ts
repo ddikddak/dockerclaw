@@ -7,6 +7,7 @@ import templatesRouter from './routes/templates';
 import cardsRouter from './routes/cards';
 import commentsRouter from './routes/comments';
 import reactionsRouter from './routes/reactions';
+import keysRouter from './routes/keys';
 
 dotenv.config();
 
@@ -25,6 +26,7 @@ app.use('/api/templates', templatesRouter);
 app.use('/api/cards', cardsRouter);
 app.use('/api/cards', commentsRouter);
 app.use('/api/cards', reactionsRouter);
+app.use('/api/keys', keysRouter);
 
 app.get('/', (_req, res) => {
   res.json({
