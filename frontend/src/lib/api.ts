@@ -52,6 +52,7 @@ export interface Reaction {
   card_id: string
   author_type: 'human' | 'agent'
   author_id: string
+  author_name?: string
   emoji: '👍' | '❤️' | '🎉' | '🚀' | '👀' | '✅'
   created_at: string
 }
@@ -160,6 +161,36 @@ class ApiClient {
     return { success: true, card: data }
   }
 
+  async executeCardAction(id: string, action: { action: string; payload?: Record<string, any> }): Promise<ActionResponse> {
+    // Handle different actions
+    switch (action.action) {
+      case 'move':
+        const { data: moveData, error: moveError } = await supabase
+          .from('Card')
+          .update({ status: action.payload?.column || 'pending' })
+          .eq('id', id)
+          .select()
+          .single()
+        if (moveError) throw new Error(moveError.message)
+        return { success: true, card: moveData }
+      
+      case 'approve':
+        return this.approveCard(id)
+      
+      case 'reject':
+        return this.rejectCard(id)
+      
+      case 'delete':
+        return this.deleteCard(id)
+      
+      case 'archive':
+        return this.archiveCard(id)
+      
+      default:
+        throw new Error(`Unknown action: ${action.action}`)
+    }
+  }
+
   // Component Actions
   async editText(cardId: string, componentId: string, text: string): Promise<ActionResponse> {
     // Get current card data
@@ -245,7 +276,7 @@ class ApiClient {
     return { comments: data || [] }
   }
 
-  async addComment(cardId: string, content: string, authorName: string = 'User'): Promise<Comment> {
+  async addComment(cardId: string, content: string, authorName: string = 'User'): Promise<{ success: boolean; comment: Comment }> {
     const { data: { user } } = await supabase.auth.getUser()
     
     const { data, error } = await supabase
@@ -261,16 +292,17 @@ class ApiClient {
       .single()
     
     if (error) throw new Error(error.message)
-    return data
+    return { success: true, comment: data }
   }
 
-  async deleteComment(commentId: string): Promise<void> {
+  async deleteComment(commentId: string): Promise<{ success: boolean; message: string }> {
     const { error } = await supabase
       .from('Comment')
       .delete()
       .eq('id', commentId)
     
     if (error) throw new Error(error.message)
+    return { success: true, message: 'Comment deleted' }
   }
 
   // Reactions
@@ -284,7 +316,7 @@ class ApiClient {
     return { reactions: data || [] }
   }
 
-  async toggleReaction(cardId: string, emoji: string): Promise<void> {
+  async toggleReaction(cardId: string, emoji: string): Promise<{ success: boolean; action: 'added' | 'removed' }> {
     const { data: { user } } = await supabase.auth.getUser()
     const authorId = user?.id || 'anonymous'
     
@@ -300,6 +332,7 @@ class ApiClient {
     if (existing) {
       // Eliminar si existeix
       await supabase.from('Reaction').delete().eq('id', existing.id)
+      return { success: true, action: 'removed' }
     } else {
       // Crear si no existeix
       await supabase.from('Reaction').insert({
@@ -308,6 +341,7 @@ class ApiClient {
         author_type: 'human',
         author_id: authorId,
       })
+      return { success: true, action: 'added' }
     }
   }
 
@@ -341,6 +375,62 @@ class ApiClient {
     
     if (error) throw new Error(error.message)
     return { activities: data || [] }
+  }
+
+  // Notifications
+  async getNotifications(options?: { limit?: number }): Promise<{ notifications: any[] }> {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    let query = supabase
+      .from('Notification')
+      .select('*')
+      .eq('user_id', user?.id)
+      .order('created_at', { ascending: false })
+    
+    if (options?.limit) {
+      query = query.limit(options.limit)
+    }
+    
+    const { data, error } = await query
+    
+    if (error) throw new Error(error.message)
+    return { notifications: data || [] }
+  }
+
+  async getUnreadCount(): Promise<{ count: number }> {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    const { count, error } = await supabase
+      .from('Notification')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user?.id)
+      .eq('read', false)
+    
+    if (error) throw new Error(error.message)
+    return { count: count || 0 }
+  }
+
+  async markNotificationRead(notificationId: string): Promise<{ success: boolean }> {
+    const { error } = await supabase
+      .from('Notification')
+      .update({ read: true })
+      .eq('id', notificationId)
+    
+    if (error) throw new Error(error.message)
+    return { success: true }
+  }
+
+  async markAllNotificationsRead(): Promise<{ success: boolean }> {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    const { error } = await supabase
+      .from('Notification')
+      .update({ read: true })
+      .eq('user_id', user?.id)
+      .eq('read', false)
+    
+    if (error) throw new Error(error.message)
+    return { success: true }
   }
 
   // Upload

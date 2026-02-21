@@ -108,8 +108,10 @@ export function Column({ id, title, color, cards, index }: ColumnProps) {
   const approveMutation = useMutation<ActionResponse, Error, string>({
     mutationFn: api.approveCard.bind(api),
     onSuccess: (data) => {
-      updateCard(data.card.id, { status: 'approved' as const })
-      queryClient.invalidateQueries({ queryKey: ['cards'] })
+      if (data.card) {
+        updateCard(data.card.id, { status: 'approved' as const })
+        queryClient.invalidateQueries({ queryKey: ['cards'] })
+      }
     },
     onError: (error) => {
       toast.error('Failed to approve card')
@@ -119,8 +121,10 @@ export function Column({ id, title, color, cards, index }: ColumnProps) {
   const rejectMutation = useMutation<ActionResponse, Error, string>({
     mutationFn: api.rejectCard.bind(api),
     onSuccess: (data) => {
-      updateCard(data.card.id, { status: 'rejected' as const })
-      queryClient.invalidateQueries({ queryKey: ['cards'] })
+      if (data.card) {
+        updateCard(data.card.id, { status: 'rejected' as const })
+        queryClient.invalidateQueries({ queryKey: ['cards'] })
+      }
     },
     onError: (error) => {
       toast.error('Failed to reject card')
@@ -130,8 +134,10 @@ export function Column({ id, title, color, cards, index }: ColumnProps) {
   const archiveMutation = useMutation<ActionResponse, Error, string>({
     mutationFn: api.archiveCard.bind(api),
     onSuccess: (data) => {
-      updateCard(data.card.id, { status: 'archived' as const })
-      queryClient.invalidateQueries({ queryKey: ['cards'] })
+      if (data.card) {
+        updateCard(data.card.id, { status: 'archived' as const })
+        queryClient.invalidateQueries({ queryKey: ['cards'] })
+      }
     },
     onError: (error) => {
       toast.error('Failed to archive card')
@@ -141,8 +147,10 @@ export function Column({ id, title, color, cards, index }: ColumnProps) {
   const deleteMutation = useMutation<ActionResponse, Error, string>({
     mutationFn: api.deleteCard.bind(api),
     onSuccess: (data) => {
-      deleteCard(data.card.id)
-      queryClient.invalidateQueries({ queryKey: ['cards'] })
+      if (data.card) {
+        deleteCard(data.card.id)
+        queryClient.invalidateQueries({ queryKey: ['cards'] })
+      }
     },
     onError: (error) => {
       toast.error('Failed to delete card')
@@ -154,8 +162,10 @@ export function Column({ id, title, color, cards, index }: ColumnProps) {
     mutationFn: ({ cardId, componentId, text }) =>
       api.editText(cardId, componentId, text),
     onSuccess: (data) => {
-      updateCard(data.card.id, { data: data.card.data })
-      queryClient.invalidateQueries({ queryKey: ['cards'] })
+      if (data.card) {
+        updateCard(data.card.id, { data: data.card.data })
+        queryClient.invalidateQueries({ queryKey: ['cards'] })
+      }
     },
     onError: (error) => {
       toast.error('Failed to update text')
@@ -166,8 +176,10 @@ export function Column({ id, title, color, cards, index }: ColumnProps) {
     mutationFn: ({ cardId, componentId, code }) =>
       api.editCode(cardId, componentId, code),
     onSuccess: (data) => {
-      updateCard(data.card.id, { data: data.card.data })
-      queryClient.invalidateQueries({ queryKey: ['cards'] })
+      if (data.card) {
+        updateCard(data.card.id, { data: data.card.data })
+        queryClient.invalidateQueries({ queryKey: ['cards'] })
+      }
     },
     onError: (error) => {
       toast.error('Failed to update code')
@@ -178,8 +190,10 @@ export function Column({ id, title, color, cards, index }: ColumnProps) {
     mutationFn: ({ cardId, componentId, itemIndex }) =>
       api.toggleCheck(cardId, componentId, itemIndex),
     onSuccess: (data) => {
-      updateCard(data.card.id, { data: data.card.data })
-      queryClient.invalidateQueries({ queryKey: ['cards'] })
+      if (data.card) {
+        updateCard(data.card.id, { data: data.card.data })
+        queryClient.invalidateQueries({ queryKey: ['cards'] })
+      }
     },
     onError: (error) => {
       toast.error('Failed to toggle check')
@@ -190,9 +204,11 @@ export function Column({ id, title, color, cards, index }: ColumnProps) {
     mutationFn: ({ cardId, componentId, file }) =>
       api.uploadImage(cardId, componentId, file),
     onSuccess: (data) => {
-      updateCard(data.card.id, { data: data.card.data })
-      queryClient.invalidateQueries({ queryKey: ['cards'] })
-      toast.success('Image uploaded successfully')
+      if (data.card) {
+        updateCard(data.card.id, { data: data.card.data })
+        queryClient.invalidateQueries({ queryKey: ['cards'] })
+        toast.success('Image uploaded successfully')
+      }
     },
     onError: (error) => {
       toast.error('Failed to upload image')
