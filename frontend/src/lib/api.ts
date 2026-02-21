@@ -56,6 +56,22 @@ export interface Reaction {
   created_at: string
 }
 
+// Action response interface for mutations
+export interface ActionResponse {
+  success: boolean
+  action?: {
+    id: string
+    card_id: string
+    agent_id: string
+    type: string
+    action: string
+    payload: Record<string, any>
+    status: string
+    created_at: string
+  }
+  card?: Card
+}
+
 // API Client usa Supabase directament
 class ApiClient {
   // Cards
@@ -96,7 +112,7 @@ class ApiClient {
   }
 
   // Card Actions
-  async approveCard(id: string): Promise<Card> {
+  async approveCard(id: string): Promise<ActionResponse> {
     const { data, error } = await supabase
       .from('Card')
       .update({ status: 'approved' })
@@ -105,10 +121,10 @@ class ApiClient {
       .single()
     
     if (error) throw new Error(error.message)
-    return data
+    return { success: true, card: data }
   }
 
-  async rejectCard(id: string): Promise<Card> {
+  async rejectCard(id: string): Promise<ActionResponse> {
     const { data, error } = await supabase
       .from('Card')
       .update({ status: 'rejected' })
@@ -117,10 +133,10 @@ class ApiClient {
       .single()
     
     if (error) throw new Error(error.message)
-    return data
+    return { success: true, card: data }
   }
 
-  async deleteCard(id: string): Promise<Card> {
+  async deleteCard(id: string): Promise<ActionResponse> {
     const { data, error } = await supabase
       .from('Card')
       .update({ status: 'deleted' })
@@ -129,10 +145,10 @@ class ApiClient {
       .single()
     
     if (error) throw new Error(error.message)
-    return data
+    return { success: true, card: data }
   }
 
-  async archiveCard(id: string): Promise<Card> {
+  async archiveCard(id: string): Promise<ActionResponse> {
     const { data, error } = await supabase
       .from('Card')
       .update({ status: 'archived' })
@@ -141,7 +157,80 @@ class ApiClient {
       .single()
     
     if (error) throw new Error(error.message)
-    return data
+    return { success: true, card: data }
+  }
+
+  // Component Actions
+  async editText(cardId: string, componentId: string, text: string): Promise<ActionResponse> {
+    // Get current card data
+    const { data: card, error: fetchError } = await supabase
+      .from('Card')
+      .select('data')
+      .eq('id', cardId)
+      .single()
+    
+    if (fetchError) throw new Error(fetchError.message)
+    
+    // Update the data
+    const updatedData = { ...card.data, content: text }
+    
+    const { data, error } = await supabase
+      .from('Card')
+      .update({ data: updatedData })
+      .eq('id', cardId)
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return { success: true, card: data }
+  }
+
+  async editCode(cardId: string, componentId: string, code: string): Promise<ActionResponse> {
+    const { data: card, error: fetchError } = await supabase
+      .from('Card')
+      .select('data')
+      .eq('id', cardId)
+      .single()
+    
+    if (fetchError) throw new Error(fetchError.message)
+    
+    const updatedData = { ...card.data, content: code }
+    
+    const { data, error } = await supabase
+      .from('Card')
+      .update({ data: updatedData })
+      .eq('id', cardId)
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return { success: true, card: data }
+  }
+
+  async toggleCheck(cardId: string, componentId: string, itemIndex: number): Promise<ActionResponse> {
+    const { data: card, error: fetchError } = await supabase
+      .from('Card')
+      .select('data')
+      .eq('id', cardId)
+      .single()
+    
+    if (fetchError) throw new Error(fetchError.message)
+    
+    // Toggle the checklist item
+    const items = [...(card.data.items || [])]
+    if (items[itemIndex]) {
+      items[itemIndex] = { ...items[itemIndex], checked: !items[itemIndex].checked }
+    }
+    
+    const { data, error } = await supabase
+      .from('Card')
+      .update({ data: { ...card.data, items } })
+      .eq('id', cardId)
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return { success: true, card: data }
   }
 
   // Comments
@@ -255,7 +344,7 @@ class ApiClient {
   }
 
   // Upload
-  async uploadImage(file: File): Promise<{ url: string; filename: string; size: number }> {
+  async uploadImage(cardId: string, componentId: string, file: File): Promise<ActionResponse> {
     const filename = `${Date.now()}-${file.name}`
     
     const { error: uploadError } = await supabase
@@ -270,11 +359,33 @@ class ApiClient {
       .from('images')
       .getPublicUrl(filename)
     
-    return {
+    // Get current card data
+    const { data: card, error: fetchError } = await supabase
+      .from('Card')
+      .select('data')
+      .eq('id', cardId)
+      .single()
+    
+    if (fetchError) throw new Error(fetchError.message)
+    
+    // Update card with image URL
+    const updatedData = { 
+      ...card.data, 
       url: publicUrl,
       filename,
       size: file.size,
+      type: 'image'
     }
+    
+    const { data, error } = await supabase
+      .from('Card')
+      .update({ data: updatedData })
+      .eq('id', cardId)
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return { success: true, card: data }
   }
 
   // API Keys - Ara el frontend no gestiona API keys (només agents)
