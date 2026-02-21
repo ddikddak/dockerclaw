@@ -1,6 +1,6 @@
 import { supabaseClient } from '@/contexts/AuthContext'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dockerclaw-backend-141346793650.europe-west1.run.app'
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || ''
 
 export type CardType = 'text' | 'code' | 'checklist' | 'image' | 'rich_text' | 'data'
