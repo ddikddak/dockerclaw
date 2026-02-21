@@ -47,8 +47,7 @@ export default function ApiKeysPage() {
               To create an API key for an agent, use the backend API directly:
             </p>
             <pre className="bg-muted p-3 rounded text-sm overflow-x-auto">
-              POST /api/keys/bootstrap
-              Body: {"name": "My Agent"}
+              {'POST /api/keys/bootstrap\nBody: {"name": "My Agent"}'}
             </pre>
           </div>
 
