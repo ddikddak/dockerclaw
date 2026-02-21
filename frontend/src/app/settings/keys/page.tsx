@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApiKey } from '@/hooks/useApiKey'
+import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -39,17 +40,7 @@ export default function ApiKeysPage() {
   // Carregar les keys existents
   const fetchKeys = async () => {
     try {
-      const response = await fetch('/api/keys', {
-        headers: {
-          'X-API-Key': storedApiKey || '',
-        },
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch API keys')
-      }
-      
-      const data = await response.json()
+      const data = await api.getApiKeys()
       setKeys(data.keys || [])
     } catch (error) {
       console.error('Error fetching keys:', error)
@@ -76,20 +67,7 @@ export default function ApiKeysPage() {
 
     setIsCreating(true)
     try {
-      const response = await fetch('/api/keys', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': storedApiKey || '',
-        },
-        body: JSON.stringify({ name: newKeyName.trim() }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to create API key')
-      }
-
-      const data = await response.json()
+      const data = await api.createApiKey(newKeyName.trim())
       
       // Mostrar la nova key (només aquesta vegada!)
       setNewKeyFull(data.fullKey)
@@ -133,23 +111,10 @@ export default function ApiKeysPage() {
 
     setIsRevoking(true)
     try {
-      const response = await fetch(`/api/keys/${keyToRevoke.id}`, {
-        method: 'DELETE',
-        headers: {
-          'X-API-Key': storedApiKey || '',
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to revoke API key')
-      }
+      await api.revokeApiKey(keyToRevoke.id)
 
       toast.success('API key revoked successfully')
       fetchKeys()
-      
-      // Si estàvem usant aquesta key, eliminar-la del localStorage
-      // (Nota: no podem saber si és la mateixa perquè només tenim el hash)
-      // L'usuari haurà de configurar una nova si la seva deixa de funcionar
     } catch (error) {
       console.error('Error revoking key:', error)
       toast.error('Failed to revoke API key')

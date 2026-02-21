@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Key, Plus, Copy, Check, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { useApiKey } from '@/hooks/useApiKey'
+import { api } from '@/lib/api'
 
 interface ApiKeyModalProps {
   isOpen: boolean
@@ -34,23 +35,9 @@ export function ApiKeyModal({ isOpen, onClose, onKeyConfigured }: ApiKeyModalPro
 
     setIsCreating(true)
     try {
-      // Per crear la primera key, fem una crida especial sense autenticació
-      // o usem un endpoint de setup inicial
-      const response = await fetch('/api/keys', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: newKeyName.trim() }),
-      })
-
-      if (!response.ok) {
-        // Si falla perquè cal autenticació, redirigim a settings
-        router.push('/settings/keys')
-        return
-      }
-
-      const data = await response.json()
+      // Per crear la primera key, usem el client API
+      const data = await api.createApiKey(newKeyName.trim())
+      
       setNewKeyFull(data.fullKey)
       setMode('success')
       

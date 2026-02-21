@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+
 export type SSEEventType = 
   | 'connected' 
   | 'activity' 
@@ -46,7 +48,8 @@ export function useSSE(options: UseSSEOptions = {}) {
     }
 
     try {
-      const eventSource = new EventSource('/api/stream');
+      const streamUrl = API_URL ? `${API_URL}/api/stream` : '/api/stream';
+      const eventSource = new EventSource(streamUrl);
       eventSourceRef.current = eventSource;
 
       eventSource.onopen = () => {
