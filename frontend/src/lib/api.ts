@@ -1,6 +1,7 @@
 import { supabaseClient } from '@/contexts/AuthContext'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY || ''
 
 export type CardType = 'text' | 'code' | 'checklist' | 'image' | 'rich_text' | 'data'
 
@@ -99,8 +100,6 @@ class ApiClient {
   }
 
   private async fetch<T>(path: string, options?: RequestInit): Promise<T> {
-    const token = await this.getAuthToken()
-    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     }
@@ -113,9 +112,9 @@ class ApiClient {
       })
     }
     
-    // Afegir token JWT si existeix
-    if (token) {
-      headers['X-API-Key'] = token
+    // Afegir API key si està configurada
+    if (API_KEY) {
+      headers['X-API-Key'] = API_KEY
     }
 
     const response = await fetch(`${this.baseUrl}${path}`, {
