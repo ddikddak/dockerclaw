@@ -3,10 +3,6 @@ import { supabaseClient } from '@/contexts/AuthContext'
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || ''
 
-// Debug: Log the actual value (will appear in browser console)
-console.log('[DEBUG] NEXT_PUBLIC_API_URL:', API_URL)
-console.log('[DEBUG] NEXT_PUBLIC_API_URL type:', typeof API_URL)
-
 // Validate API_URL is configured
 if (!API_URL) {
   throw new Error('NO ENV VARIABLE found: NEXT_PUBLIC_API_URL is not configured. Please set it in Vercel environment variables.')
