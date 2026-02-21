@@ -31,8 +31,6 @@ import { Plus, Settings, Users, Loader2, LogOut, User, Loader2Icon } from 'lucid
 import { api } from '@/lib/api'
 import { useBoardStore } from '@/lib/store'
 import { useAuth } from '@/contexts/AuthContext'
-import { useApiKey } from '@/hooks/useApiKey'
-import { ApiKeyModal } from '@/components/ApiKeyModal'
 
 export default function Home() {
   const [open, setOpen] = useState(false)
@@ -42,10 +40,9 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const addCard = useBoardStore((state) => state.addCard)
   const { user, signOut, isLoading } = useAuth()
-  const { apiKey, isLoading: isApiKeyLoading } = useApiKey()
 
-  // Mostrar loading mentre es comprova l'autenticació i API key
-  if (isLoading || isApiKeyLoading) {
+  // Mostrar loading mentre es comprova l'autenticació
+  if (isLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
@@ -259,13 +256,6 @@ export default function Home() {
           <DndProvider />
         </Canvas>
       </main>
-
-      {/* API Key Modal - bloqueja l'ús fins que es configuri */}
-      <ApiKeyModal 
-        isOpen={!apiKey} 
-        onClose={() => {}} 
-        onKeyConfigured={() => window.location.reload()}
-      />
     </div>
   )
 }

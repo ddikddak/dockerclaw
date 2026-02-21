@@ -1,12 +1,14 @@
-import { supabaseClient } from '@/contexts/AuthContext'
+import { createClient } from '@supabase/supabase-js'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || ''
+// Client Supabase per al frontend (accedeix directament a la BD)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-// Validate API_URL is configured
-if (!API_URL) {
-  throw new Error('NO ENV VARIABLE found: NEXT_PUBLIC_API_URL is not configured. Please set it in Vercel environment variables.')
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('SUPABASE_URL o SUPABASE_ANON_KEY no configurades')
 }
+
+export const supabase = createClient(supabaseUrl, supabaseKey)
 
 export type CardType = 'text' | 'code' | 'checklist' | 'image' | 'rich_text' | 'data'
 
@@ -22,29 +24,16 @@ export interface Card {
     checklist?: { text: string; checked: boolean }[]
     items?: { text: string; checked: boolean }[]
     language?: string
-    // Image
     url?: string
     filename?: string
     size?: number
-    // Rich text
     html?: string
-    // Data/JSON
     json?: object | string
     [key: string]: any
   }
   status: 'pending' | 'in_progress' | 'approved' | 'rejected' | 'archived' | 'deleted'
   created_at: string
   updated_at?: string
-}
-
-export interface CardAction {
-  action: 'approve' | 'reject' | 'delete' | 'archive' | 'move'
-  payload?: Record<string, any>
-}
-
-export interface ComponentAction {
-  action: 'edit_text' | 'edit_code' | 'toggle_check' | 'add_comment' | 'upload_image'
-  payload: Record<string, any>
 }
 
 export interface Comment {
@@ -63,346 +52,212 @@ export interface Reaction {
   card_id: string
   author_type: 'human' | 'agent'
   author_id: string
-  author_name?: string
   emoji: '👍' | '❤️' | '🎉' | '🚀' | '👀' | '✅'
   created_at: string
 }
 
-export interface ActionResponse {
-  success: boolean
-  action: {
-    id: string
-    card_id: string
-    agent_id: string
-    type: string
-    action: string
-    payload: Record<string, any>
-    status: string
-    created_at: string
-  }
-  card: {
-    id: string
-    status?: string
-    data?: Record<string, any>
-  }
-}
-
-// Obtenir API key des de localStorage o variable d'entorn
-function getApiKey(): string {
-  // En el browser, intentem obtenir-la del localStorage
-  if (typeof window !== 'undefined') {
-    const storedKey = localStorage.getItem('dockerclaw_api_key')
-    if (storedKey) return storedKey
-  }
-  // Fallback a la variable d'entorn (per compatibilitat)
-  return API_KEY
-}
-
+// API Client usa Supabase directament
 class ApiClient {
-  private baseUrl: string
-
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl
-  }
-
-  private async getAuthToken(): Promise<string | null> {
-    try {
-      const { data: { session } } = await supabaseClient.auth.getSession()
-      return session?.access_token ?? null
-    } catch (error) {
-      console.error('Error getting auth token:', error)
-      return null
-    }
-  }
-
-  private async fetch<T>(path: string, options?: RequestInit): Promise<T> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    }
-    
-    // Copiar headers existents
-    if (options?.headers) {
-      const existingHeaders = options.headers as Record<string, string>
-      Object.keys(existingHeaders).forEach(key => {
-        headers[key] = existingHeaders[key]
-      })
-    }
-    
-    // Afegir API key - prioritat a localStorage, després variable d'entorn
-    const apiKey = getApiKey()
-    if (apiKey) {
-      headers['X-API-Key'] = apiKey
-    }
-
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      ...options,
-      headers,
-    })
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }))
-      throw new Error(error.error || `API error: ${response.status} ${response.statusText}`)
-    }
-
-    return response.json()
-  }
-
   // Cards
   async getCards(): Promise<{ cards: Card[] }> {
-    return this.fetch('/api/cards')
+    const { data, error } = await supabase
+      .from('Card')
+      .select('*')
+      .order('created_at', { ascending: false })
+    
+    if (error) throw new Error(error.message)
+    return { cards: data || [] }
   }
 
   async getCard(id: string): Promise<Card> {
-    return this.fetch(`/api/cards/${id}`)
+    const { data, error } = await supabase
+      .from('Card')
+      .select('*')
+      .eq('id', id)
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return data
   }
 
   async createCard(card: { template_id: string; data: Record<string, any> }): Promise<Card> {
-    return this.fetch('/api/cards', {
-      method: 'POST',
-      body: JSON.stringify(card),
-    })
+    const { data, error } = await supabase
+      .from('Card')
+      .insert({
+        template_id: card.template_id,
+        data: card.data,
+        status: 'pending',
+      })
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return data
   }
 
   // Card Actions
-  async executeCardAction(id: string, action: CardAction): Promise<ActionResponse> {
-    return this.fetch(`/api/cards/${id}/actions`, {
-      method: 'POST',
-      body: JSON.stringify(action),
-    })
-  }
-
-  async approveCard(id: string): Promise<ActionResponse> {
-    return this.executeCardAction(id, { action: 'approve' })
-  }
-
-  async rejectCard(id: string): Promise<ActionResponse> {
-    return this.executeCardAction(id, { action: 'reject' })
-  }
-
-  async deleteCard(id: string): Promise<ActionResponse> {
-    return this.executeCardAction(id, { action: 'delete' })
-  }
-
-  async archiveCard(id: string): Promise<ActionResponse> {
-    return this.executeCardAction(id, { action: 'archive' })
-  }
-
-  async moveCard(id: string, column: string): Promise<ActionResponse> {
-    return this.executeCardAction(id, { action: 'move', payload: { column } })
-  }
-
-  // Component Actions
-  async executeComponentAction(
-    cardId: string, 
-    componentId: string, 
-    action: ComponentAction
-  ): Promise<ActionResponse> {
-    return this.fetch(`/api/cards/${cardId}/components/${componentId}/actions`, {
-      method: 'POST',
-      body: JSON.stringify(action),
-    })
-  }
-
-  async editText(cardId: string, componentId: string, text: string): Promise<ActionResponse> {
-    return this.executeComponentAction(cardId, componentId, {
-      action: 'edit_text',
-      payload: { text },
-    })
-  }
-
-  async editCode(cardId: string, componentId: string, code: string): Promise<ActionResponse> {
-    return this.executeComponentAction(cardId, componentId, {
-      action: 'edit_code',
-      payload: { text: code },
-    })
-  }
-
-  async toggleCheck(cardId: string, componentId: string, itemIndex: number): Promise<ActionResponse> {
-    return this.executeComponentAction(cardId, componentId, {
-      action: 'toggle_check',
-      payload: { itemIndex },
-    })
-  }
-
-  async uploadImage(cardId: string, componentId: string, file: File): Promise<ActionResponse> {
-    // First upload to storage API, then update component
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('cardId', cardId)
+  async approveCard(id: string): Promise<Card> {
+    const { data, error } = await supabase
+      .from('Card')
+      .update({ status: 'approved' })
+      .eq('id', id)
+      .select()
+      .single()
     
-    // Per upload, necessitem afegir la API key manualment
-    const apiKey = getApiKey()
-    const uploadHeaders: Record<string, string> = {}
-    if (apiKey) {
-      uploadHeaders['X-API-Key'] = apiKey
-    }
-    
-    const uploadResponse = await fetch(`${this.baseUrl}/api/upload`, {
-      method: 'POST',
-      headers: uploadHeaders,
-      body: formData,
-    })
-    
-    if (!uploadResponse.ok) {
-      const error = await uploadResponse.json().catch(() => ({ error: 'Upload failed' }))
-      throw new Error(error.error || 'Failed to upload image')
-    }
-    
-    const { url, filename, size } = await uploadResponse.json()
-    
-    return this.executeComponentAction(cardId, componentId, {
-      action: 'upload_image',
-      payload: { url, filename, size, type: 'image' },
-    })
+    if (error) throw new Error(error.message)
+    return data
   }
 
-  // Templates
-  async getTemplates(): Promise<{ templates: any[] }> {
-    return this.fetch('/api/templates')
+  async rejectCard(id: string): Promise<Card> {
+    const { data, error } = await supabase
+      .from('Card')
+      .update({ status: 'rejected' })
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return data
   }
 
-  async createTemplate(template: { name: string; schema: Record<string, any> }): Promise<any> {
-    return this.fetch('/api/templates', {
-      method: 'POST',
-      body: JSON.stringify(template),
-    })
+  async deleteCard(id: string): Promise<Card> {
+    const { data, error } = await supabase
+      .from('Card')
+      .update({ status: 'deleted' })
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return data
   }
 
-  // Agent
-  async registerAgent(agent: { name: string; email: string; webhook_url?: string }): Promise<any> {
-    return this.fetch('/api/agents/register', {
-      method: 'POST',
-      body: JSON.stringify(agent),
-    })
-  }
-
-  async getAgentEvents(agentId: string, apiKey: string): Promise<{ events: any[] }> {
-    return this.fetch(`/api/agents/${agentId}/events`, {
-      headers: {
-        'X-API-Key': apiKey,
-      },
-    })
+  async archiveCard(id: string): Promise<Card> {
+    const { data, error } = await supabase
+      .from('Card')
+      .update({ status: 'archived' })
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return data
   }
 
   // Comments
   async getComments(cardId: string): Promise<{ comments: Comment[] }> {
-    return this.fetch(`/api/cards/${cardId}/comments`)
+    const { data, error } = await supabase
+      .from('Comment')
+      .select('*')
+      .eq('card_id', cardId)
+      .order('created_at', { ascending: true })
+    
+    if (error) throw new Error(error.message)
+    return { comments: data || [] }
   }
 
-  async addComment(
-    cardId: string, 
-    content: string, 
-    options?: { author_type?: 'human' | 'agent'; author_id?: string; author_name?: string }
-  ): Promise<{ success: boolean; comment: Comment }> {
-    return this.fetch(`/api/cards/${cardId}/comments`, {
-      method: 'POST',
-      body: JSON.stringify({
+  async addComment(cardId: string, content: string, authorName: string = 'User'): Promise<Comment> {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    const { data, error } = await supabase
+      .from('Comment')
+      .insert({
+        card_id: cardId,
         content,
-        author_type: options?.author_type || 'human',
-        author_id: options?.author_id,
-        author_name: options?.author_name,
-      }),
-    })
+        author_type: 'human',
+        author_id: user?.id || 'anonymous',
+        author_name: authorName,
+      })
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return data
   }
 
-  async deleteComment(commentId: string): Promise<{ success: boolean; message: string }> {
-    return this.fetch(`/api/comments/${commentId}`, {
-      method: 'DELETE',
-    })
+  async deleteComment(commentId: string): Promise<void> {
+    const { error } = await supabase
+      .from('Comment')
+      .delete()
+      .eq('id', commentId)
+    
+    if (error) throw new Error(error.message)
   }
 
   // Reactions
   async getReactions(cardId: string): Promise<{ reactions: Reaction[] }> {
-    return this.fetch(`/api/cards/${cardId}/reactions`)
+    const { data, error } = await supabase
+      .from('Reaction')
+      .select('*')
+      .eq('card_id', cardId)
+    
+    if (error) throw new Error(error.message)
+    return { reactions: data || [] }
   }
 
-  async toggleReaction(
-    cardId: string, 
-    emoji: Reaction['emoji'],
-    options?: { author_type?: 'human' | 'agent'; author_id?: string; author_name?: string }
-  ): Promise<{ success: boolean; action: 'added' | 'removed'; reaction?: Reaction }> {
-    return this.fetch(`/api/cards/${cardId}/reactions`, {
-      method: 'POST',
-      body: JSON.stringify({
+  async toggleReaction(cardId: string, emoji: string): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser()
+    const authorId = user?.id || 'anonymous'
+    
+    // Comprovar si ja existeix
+    const { data: existing } = await supabase
+      .from('Reaction')
+      .select('id')
+      .eq('card_id', cardId)
+      .eq('author_id', authorId)
+      .eq('emoji', emoji)
+      .single()
+    
+    if (existing) {
+      // Eliminar si existeix
+      await supabase.from('Reaction').delete().eq('id', existing.id)
+    } else {
+      // Crear si no existeix
+      await supabase.from('Reaction').insert({
+        card_id: cardId,
         emoji,
-        author_type: options?.author_type || 'human',
-        author_id: options?.author_id,
-        author_name: options?.author_name,
-      }),
-    })
+        author_type: 'human',
+        author_id: authorId,
+      })
+    }
   }
 
-  // Activity
-  async getActivity(options?: { 
-    targetId?: string; 
-    targetType?: string; 
-    actorId?: string;
-    action?: string;
-    limit?: number;
-    offset?: number;
-  }): Promise<{ activities: any[] }> {
-    const params = new URLSearchParams()
-    if (options?.targetId) params.set('targetId', options.targetId)
-    if (options?.targetType) params.set('targetType', options.targetType)
-    if (options?.actorId) params.set('actorId', options.actorId)
-    if (options?.action) params.set('action', options.action)
-    if (options?.limit) params.set('limit', options.limit.toString())
-    if (options?.offset) params.set('offset', options.offset.toString())
+  // Templates
+  async getTemplates(): Promise<{ templates: any[] }> {
+    const { data, error } = await supabase
+      .from('Template')
+      .select('*')
+      .order('created_at', { ascending: false })
     
-    return this.fetch(`/api/activity?${params.toString()}`)
+    if (error) throw new Error(error.message)
+    return { templates: data || [] }
   }
 
-  // Notifications
-  async getNotifications(options?: { unreadOnly?: boolean; limit?: number }): Promise<{ notifications: any[] }> {
-    const params = new URLSearchParams()
-    if (options?.unreadOnly) params.set('unread', 'true')
-    if (options?.limit) params.set('limit', options.limit.toString())
+  // Upload
+  async uploadImage(file: File): Promise<{ url: string; filename: string; size: number }> {
+    const filename = `${Date.now()}-${file.name}`
     
-    return this.fetch(`/api/notifications?${params.toString()}`)
+    const { error: uploadError } = await supabase
+      .storage
+      .from('images')
+      .upload(filename, file)
+    
+    if (uploadError) throw new Error(uploadError.message)
+    
+    const { data: { publicUrl } } = supabase
+      .storage
+      .from('images')
+      .getPublicUrl(filename)
+    
+    return {
+      url: publicUrl,
+      filename,
+      size: file.size,
+    }
   }
 
-  async getUnreadCount(): Promise<{ count: number }> {
-    return this.fetch('/api/notifications?count=true')
-  }
-
-  async markNotificationRead(notificationId: string): Promise<{ success: boolean }> {
-    return this.fetch('/api/notifications', {
-      method: 'PATCH',
-      body: JSON.stringify({ id: notificationId }),
-    })
-  }
-
-  async markAllNotificationsRead(): Promise<{ success: boolean }> {
-    return this.fetch('/api/notifications', {
-      method: 'PATCH',
-      body: JSON.stringify({ all: true }),
-    })
-  }
-
-  // API Keys
-  async getApiKeys(): Promise<{ keys: any[] }> {
-    return this.fetch('/api/keys')
-  }
-
-  async createApiKey(name: string): Promise<any> {
-    return this.fetch('/api/keys', {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    })
-  }
-
-  async bootstrapApiKey(name: string): Promise<any> {
-    return this.fetch('/api/keys/bootstrap', {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    })
-  }
-
-  async revokeApiKey(id: string): Promise<any> {
-    return this.fetch(`/api/keys/${id}`, {
-      method: 'DELETE',
-    })
-  }
+  // API Keys - Ara el frontend no gestiona API keys (només agents)
+  // Aquestes funcions s'han eliminat ja que el frontend no necessita API keys
 }
 
-export const api = new ApiClient(API_URL)
+export const api = new ApiClient()
