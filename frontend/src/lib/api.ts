@@ -116,14 +116,41 @@ class ApiClient {
     return data
   }
 
-  async createCard(card: { template_id: string; data: Record<string, any> }): Promise<Card> {
+  async createCard(card: { template_id: string; data: Record<string, any>; tags?: string[] }): Promise<Card> {
+    // Incloure tags dins de data
+    const cardData = {
+      ...card.data,
+      tags: card.tags || card.data?.tags || []
+    }
+
     const { data, error } = await supabase
       .from('Card')
       .insert({
         template_id: card.template_id,
-        data: card.data,
+        data: cardData,
         status: 'pending',
       })
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return data
+  }
+
+  async updateCard(id: string, updates: { data?: Record<string, any>; tags?: string[]; status?: string }): Promise<Card> {
+    const updateData: any = {}
+    
+    if (updates.data !== undefined) {
+      updateData.data = updates.data
+    }
+    if (updates.status !== undefined) {
+      updateData.status = updates.status
+    }
+
+    const { data, error } = await supabase
+      .from('Card')
+      .update(updateData)
+      .eq('id', id)
       .select()
       .single()
     

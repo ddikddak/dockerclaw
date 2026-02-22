@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { CardList } from '@/components/CardList'
@@ -13,6 +14,7 @@ import { Plus, Loader2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 export default function Home() {
+  const router = useRouter()
   const [cards, setCards] = useState<Card[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -42,10 +44,8 @@ export default function Home() {
   }, [])
 
   const handleCardClick = useCallback((card: Card) => {
-    // Per ara només console.log, després navegarem a /cards/[id]
-    console.log('Card clicked:', card)
-    // TODO: router.push(`/cards/${card.id}`)
-  }, [])
+    router.push(`/cards/${card.id}`)
+  }, [router])
 
   const handleCardUpdate = useCallback((updatedCard: Card) => {
     setCards(prevCards => 
