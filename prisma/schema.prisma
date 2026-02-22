@@ -23,24 +23,33 @@ model Agent {
 model Template {
   id         String   @id @default(uuid())
   agent_id   String
+  user_id    String?  // For RLS - references auth.users
   name       String
   schema     Json
   created_at DateTime @default(now())
   
   agent      Agent    @relation(fields: [agent_id], references: [id])
   cards      Card[]
+  
+  @@index([user_id])
 }
 
 model Card {
   id          String   @id @default(uuid())
   template_id String
   agent_id    String
+  user_id     String?  // For RLS - references auth.users
+  tags        String[] @default([])
   data        Json
   status      String   @default("pending")
   created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
   
   template    Template @relation(fields: [template_id], references: [id])
   agent       Agent    @relation(fields: [agent_id], references: [id])
+  
+  @@index([user_id])
+  @@index([tags])
 }
 
 model Event {
