@@ -1,80 +1,101 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { MainLayout } from '@/components/layout/MainLayout'
-import { InfiniteCanvas } from '@/components/canvas/InfiniteCanvas'
-import { useBoardStore } from '@/lib/store'
-import { api } from '@/lib/api'
+import { CardList } from '@/components/CardList'
+import { SearchBar } from '@/components/SearchBar'
+import { Button } from '@/components/ui/button'
+import { api, Card } from '@/lib/api'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Plus, Loader2 } from 'lucide-react'
+import { motion } from 'framer-motion'
 
 export default function Home() {
-  const { cards, setCards, setLoading, isLoading, error, setError } = useBoardStore()
+  const [cards, setCards] = useState<Card[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Carregar cards de Supabase
   useEffect(() => {
     const loadCards = async () => {
-      setLoading(true)
-      setError(null)
+      setIsLoading(true)
 
       try {
         const { cards: fetchedCards } = await api.getCards()
-        
-        // Assignar posicions per defecte si no en tenen
-        const cardsWithPositions = fetchedCards.map((card, index) => ({
-          ...card,
-          x: card.x ?? (index % 5) * 320 + 50,
-          y: card.y ?? Math.floor(index / 5) * 200 + 50,
-        }))
-
-        setCards(cardsWithPositions)
+        setCards(fetchedCards)
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load cards'
-        setError(errorMessage)
         toast.error(errorMessage)
       } finally {
-        setLoading(false)
+        setIsLoading(false)
       }
     }
 
     loadCards()
-  }, [setCards, setLoading, setError])
+  }, [])
 
-  if (isLoading) {
-    return (
-      <MainLayout>
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-            <p className="text-gray-600">Loading canvas...</p>
-          </div>
-        </div>
-      </MainLayout>
-    )
-  }
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query)
+  }, [])
 
-  if (error) {
-    return (
-      <MainLayout>
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-red-600 font-medium">Error loading canvas</p>
-            <p className="text-gray-500 mt-2">{error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      </MainLayout>
-    )
-  }
+  const handleCardClick = useCallback((card: Card) => {
+    // Per ara només console.log, després navegarem a /cards/[id]
+    console.log('Card clicked:', card)
+    // TODO: router.push(`/cards/${card.id}`)
+  }, [])
 
   return (
     <MainLayout>
-      <InfiniteCanvas />
+      <div className="h-full flex flex-col bg-[#f5f5f5]">
+        {/* Header */}
+        <motion.header 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white border-b border-gray-200 px-6 py-4"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Manage your cards and content
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <SearchBar 
+                onSearch={handleSearch}
+                placeholder="Search cards..."
+              />
+              
+              <Link href="/cards/new">
+                <Button 
+                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Card
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </motion.header>
+
+        {/* Content */}
+        <div className="flex-1 overflow-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+            </div>
+          ) : (
+            <CardList 
+              cards={cards}
+              isLoading={isLoading}
+              searchQuery={searchQuery}
+              onCardClick={handleCardClick}
+            />
+          )}
+        </div>
+      </div>
     </MainLayout>
   )
 }
