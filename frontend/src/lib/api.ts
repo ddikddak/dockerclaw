@@ -32,6 +32,8 @@ export interface Card {
     [key: string]: any
   }
   status: 'pending' | 'in_progress' | 'approved' | 'rejected' | 'archived' | 'deleted'
+  x: number  // Canvas X coordinate
+  y: number  // Canvas Y coordinate
   created_at: string
   updated_at?: string
 }
@@ -80,10 +82,23 @@ class ApiClient {
     const { data, error } = await supabase
       .from('Card')
       .select('*')
+      .neq('status', 'deleted')
       .order('created_at', { ascending: false })
     
     if (error) throw new Error(error.message)
     return { cards: data || [] }
+  }
+
+  async updateCardPosition(id: string, x: number, y: number): Promise<ActionResponse> {
+    const { data, error } = await supabase
+      .from('Card')
+      .update({ x, y })
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return { success: true, card: data }
   }
 
   async getCard(id: string): Promise<Card> {
