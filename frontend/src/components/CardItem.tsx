@@ -4,10 +4,13 @@ import { motion } from 'framer-motion'
 import { Card } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { FileText, Image, Code, CheckSquare, Database, Type } from 'lucide-react'
+import { TagBadge } from './TagBadge'
+import { EditTagsPopover } from './EditTagsPopover'
 
 interface CardItemProps {
   card: Card
   onClick?: (card: Card) => void
+  onUpdate?: (card: Card) => void
 }
 
 // Formatar data relativa ("2h ago", "1d ago")
@@ -121,7 +124,7 @@ function CardThumbnail({ card }: { card: Card }) {
   )
 }
 
-export function CardItem({ card, onClick }: CardItemProps) {
+export function CardItem({ card, onClick, onUpdate }: CardItemProps) {
   const title = card.data?.title || 'Untitled Card'
   const type = card.data?.type || 'text'
   const tags: string[] = card.data?.tags || []
@@ -131,6 +134,14 @@ export function CardItem({ card, onClick }: CardItemProps) {
   const visibleTags = tags.slice(0, 3)
   const hiddenTagsCount = tags.length - 3
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Prevent click if clicking on the edit tags button
+    if ((e.target as HTMLElement).closest('[data-edit-tags]')) {
+      return
+    }
+    onClick?.(card)
+  }
+
   return (
     <motion.div
       layout
@@ -138,7 +149,7 @@ export function CardItem({ card, onClick }: CardItemProps) {
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -4, scale: 1.01 }}
       transition={{ duration: 0.2 }}
-      onClick={() => onClick?.(card)}
+      onClick={handleCardClick}
       className="group bg-white rounded-xl border border-gray-200 p-4 cursor-pointer
                  hover:shadow-lg hover:border-gray-300 transition-all duration-200"
     >
@@ -151,24 +162,39 @@ export function CardItem({ card, onClick }: CardItemProps) {
       </h3>
 
       {/* Tags */}
-      {tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          {visibleTags.map((tag, idx) => (
-            <Badge 
-              key={idx} 
-              variant="secondary" 
-              className="text-xs bg-gray-100 text-gray-700 hover:bg-gray-200"
+      <div className="flex flex-wrap items-center gap-1.5 mb-3">
+        {visibleTags.map((tag, idx) => (
+          <TagBadge key={`${tag}-${idx}`} tag={tag} />
+        ))}
+        {hiddenTagsCount > 0 && (
+          <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-500">
+            +{hiddenTagsCount}
+          </Badge>
+        )}
+        <EditTagsPopover card={card} onUpdate={onUpdate}>
+          <button
+            data-edit-tags
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-gray-100"
+            title="Edit tags"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-gray-400 hover:text-gray-600"
             >
-              {tag}
-            </Badge>
-          ))}
-          {hiddenTagsCount > 0 && (
-            <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-500">
-              +{hiddenTagsCount}
-            </Badge>
-          )}
-        </div>
-      )}
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          </button>
+        </EditTagsPopover>
+      </div>
 
       {/* Footer */}
       <div className="flex items-center justify-between pt-2 border-t border-gray-100">

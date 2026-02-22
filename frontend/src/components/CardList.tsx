@@ -11,6 +11,7 @@ interface CardListProps {
   searchQuery?: string
   selectedTags?: string[]
   onCardClick?: (card: Card) => void
+  onCardUpdate?: (card: Card) => void
 }
 
 // Skeleton loader per cards
@@ -43,7 +44,8 @@ export function CardList({
   isLoading = false, 
   searchQuery = '', 
   selectedTags = [],
-  onCardClick 
+  onCardClick,
+  onCardUpdate
 }: CardListProps) {
   
   // Filtrar cards segons cerca i tags
@@ -107,6 +109,7 @@ export function CardList({
           key={card.id} 
           card={card} 
           onClick={onCardClick}
+          onUpdate={onCardUpdate}
         />
       ))}
     </motion.div>

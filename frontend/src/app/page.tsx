@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { CardList } from '@/components/CardList'
 import { SearchBar } from '@/components/SearchBar'
+import { TagFilter } from '@/components/TagFilter'
 import { Button } from '@/components/ui/button'
 import { api, Card } from '@/lib/api'
 import { toast } from 'sonner'
@@ -15,6 +16,7 @@ export default function Home() {
   const [cards, setCards] = useState<Card[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
 
   // Carregar cards de Supabase
   useEffect(() => {
@@ -43,6 +45,15 @@ export default function Home() {
     // Per ara només console.log, després navegarem a /cards/[id]
     console.log('Card clicked:', card)
     // TODO: router.push(`/cards/${card.id}`)
+  }, [])
+
+  const handleCardUpdate = useCallback((updatedCard: Card) => {
+    setCards(prevCards => 
+      prevCards.map(card => 
+        card.id === updatedCard.id ? updatedCard : card
+      )
+    )
+    toast.success('Tags updated successfully')
   }, [])
 
   return (
@@ -78,6 +89,14 @@ export default function Home() {
               </Link>
             </div>
           </div>
+
+          {/* Tag Filter */}
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <TagFilter 
+              selectedTags={selectedTags}
+              onChange={setSelectedTags}
+            />
+          </div>
         </motion.header>
 
         {/* Content */}
@@ -91,7 +110,9 @@ export default function Home() {
               cards={cards}
               isLoading={isLoading}
               searchQuery={searchQuery}
+              selectedTags={selectedTags}
               onCardClick={handleCardClick}
+              onCardUpdate={handleCardUpdate}
             />
           )}
         </div>
