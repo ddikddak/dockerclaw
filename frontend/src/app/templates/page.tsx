@@ -29,7 +29,7 @@ export default function TemplatesPage() {
 
   return (
     <MainLayout>
-      <div className="h-full p-6 bg-[#f5f5f5]">
+      <div className="h-full p-8 bg-white">
         <TemplateList templates={templates} isLoading={isLoading} />
       </div>
     </MainLayout>

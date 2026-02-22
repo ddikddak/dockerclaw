@@ -1,8 +1,6 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { Card } from '@/lib/api'
-import { Badge } from '@/components/ui/badge'
 import { FileText, Image, Code, CheckSquare, Database, Type } from 'lucide-react'
 import { TagBadge } from './TagBadge'
 import { EditTagsPopover } from './EditTagsPopover'
@@ -13,7 +11,6 @@ interface CardItemProps {
   onUpdate?: (card: Card) => void
 }
 
-// Formatar data relativa ("2h ago", "1d ago")
 function formatRelativeTime(dateString: string): string {
   const date = new Date(dateString)
   const now = new Date()
@@ -23,40 +20,30 @@ function formatRelativeTime(dateString: string): string {
   const diffHours = Math.floor(diffMins / 60)
   const diffDays = Math.floor(diffHours / 24)
 
-  if (diffSecs < 60) return 'just now'
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays < 7) return `${diffDays}d ago`
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`
+  if (diffSecs < 60) return 'now'
+  if (diffMins < 60) return `${diffMins}m`
+  if (diffHours < 24) return `${diffHours}h`
+  if (diffDays < 7) return `${diffDays}d`
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-// Obtenir icona segons el tipus de card
 function getCardTypeIcon(type?: string) {
   switch (type) {
-    case 'image':
-      return <Image className="h-4 w-4" />
-    case 'code':
-      return <Code className="h-4 w-4" />
-    case 'checklist':
-      return <CheckSquare className="h-4 w-4" />
-    case 'data':
-      return <Database className="h-4 w-4" />
-    case 'text':
-      return <Type className="h-4 w-4" />
-    default:
-      return <FileText className="h-4 w-4" />
+    case 'image': return <Image className="h-3.5 w-3.5" />
+    case 'code': return <Code className="h-3.5 w-3.5" />
+    case 'checklist': return <CheckSquare className="h-3.5 w-3.5" />
+    case 'data': return <Database className="h-3.5 w-3.5" />
+    case 'text': return <Type className="h-3.5 w-3.5" />
+    default: return <FileText className="h-3.5 w-3.5" />
   }
 }
 
-// Generar thumbnail/preview de la card
 function CardThumbnail({ card }: { card: Card }) {
   const type = card.data?.type || 'text'
   
-  // Si té imatge, mostrar-la
   if (type === 'image' && card.data?.url) {
     return (
-      <div className="w-full h-32 bg-gray-100 rounded-lg overflow-hidden mb-3">
+      <div className="w-full h-28 bg-gray-50 overflow-hidden mb-3">
         <img 
           src={card.data.url} 
           alt={card.data.title || 'Card image'}
@@ -66,132 +53,99 @@ function CardThumbnail({ card }: { card: Card }) {
     )
   }
 
-  // Si té codi, mostrar preview
   if (type === 'code' && card.data?.content) {
-    const preview = card.data.content.slice(0, 100)
+    const preview = card.data.content.slice(0, 80)
     return (
-      <div className="w-full h-32 bg-gray-900 rounded-lg p-3 mb-3 overflow-hidden">
-        <code className="text-xs text-gray-300 font-mono line-clamp-4">
+      <div className="w-full h-28 bg-gray-900 p-3 mb-3 overflow-hidden">
+        <code className="text-[11px] text-gray-400 font-mono line-clamp-4">
           {preview}
         </code>
       </div>
     )
   }
 
-  // Si és checklist
   if (type === 'checklist' && card.data?.items) {
     const items = card.data.items.slice(0, 3)
     return (
-      <div className="w-full h-32 bg-gray-50 rounded-lg p-3 mb-3">
-        <div className="space-y-2">
+      <div className="w-full h-28 bg-gray-50 p-3 mb-3">
+        <div className="space-y-1.5">
           {items.map((item, idx) => (
             <div key={idx} className="flex items-center gap-2">
-              <div className={`w-4 h-4 rounded border ${item.checked ? 'bg-blue-500 border-blue-500' : 'border-gray-300'}`}>
-                {item.checked && <CheckSquare className="w-3 h-3 text-white m-0.5" />}
-              </div>
-              <span className={`text-xs ${item.checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                {item.text.slice(0, 30)}{item.text.length > 30 ? '...' : ''}
+              <div className={`w-3.5 h-3.5 border ${item.checked ? 'bg-gray-800 border-gray-800' : 'border-gray-300'}`} />
+              <span className={`text-[11px] ${item.checked ? 'line-through text-gray-400' : 'text-gray-600'}`}>
+                {item.text.slice(0, 25)}{item.text.length > 25 ? '...' : ''}
               </span>
             </div>
           ))}
           {card.data.items.length > 3 && (
-            <span className="text-xs text-gray-400">+{card.data.items.length - 3} more</span>
+            <span className="text-[10px] text-gray-400">+{card.data.items.length - 3} more</span>
           )}
         </div>
       </div>
     )
   }
 
-  // Default: text preview
   const content = card.data?.content || card.data?.description || ''
   if (content) {
     return (
-      <div className="w-full h-32 bg-gray-50 rounded-lg p-3 mb-3">
-        <p className="text-sm text-gray-600 line-clamp-4">
-          {content.slice(0, 150)}
+      <div className="w-full h-28 bg-gray-50 p-3 mb-3">
+        <p className="text-xs text-gray-600 line-clamp-4">
+          {content.slice(0, 120)}
         </p>
       </div>
     )
   }
 
-  // Empty state thumbnail
   return (
-    <div className="w-full h-32 bg-gradient-to-br from-gray-100 to-gray-50 rounded-lg mb-3 flex items-center justify-center">
-      <div className="text-gray-300">
-        {getCardTypeIcon(type)}
-      </div>
+    <div className="w-full h-28 bg-gray-50 mb-3 flex items-center justify-center">
+      <div className="text-gray-300">{getCardTypeIcon(type)}</div>
     </div>
   )
 }
 
 export function CardItem({ card, onClick, onUpdate }: CardItemProps) {
-  const title = card.data?.title || 'Untitled Card'
+  const title = card.data?.title || 'Untitled'
   const type = card.data?.type || 'text'
   const tags: string[] = card.data?.tags || []
   const createdAt = formatRelativeTime(card.created_at)
-  const templateName = 'Default'
 
-  const visibleTags = tags.slice(0, 3)
-  const hiddenTagsCount = tags.length - 3
+  const visibleTags = tags.slice(0, 2)
 
   const handleCardClick = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('[data-edit-tags]')) {
-      return
-    }
+    if ((e.target as HTMLElement).closest('[data-edit-tags]')) return
     onClick?.(card)
   }
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ 
-        y: -6, 
-        scale: 1.02,
-        transition: { duration: 0.2, ease: "easeOut" }
-      }}
-      transition={{ duration: 0.2 }}
+    <div
       onClick={handleCardClick}
-      className="group bg-white rounded-xl border border-gray-200 p-4 cursor-pointer
-                 hover:shadow-xl hover:border-blue-200 transition-all duration-300
-                 hover:bg-gradient-to-b hover:from-white hover:to-blue-50/30"
+      className="group bg-white p-4 cursor-pointer border border-transparent hover:border-gray-200 transition-all duration-150"
     >
-      {/* Thumbnail */}
       <CardThumbnail card={card} />
 
-      {/* Title */}
-      <h3 className="font-semibold text-gray-900 mb-2 line-clamp-1 group-hover:text-blue-600 transition-colors">
+      <h3 className="text-sm font-medium text-gray-900 mb-2 line-clamp-1">
         {title}
       </h3>
 
-      {/* Tags */}
-      <div className="flex flex-wrap items-center gap-1.5 mb-3">
+      <div className="flex flex-wrap items-center gap-1 mb-3">
         {visibleTags.map((tag, idx) => (
           <TagBadge key={`${tag}-${idx}`} tag={tag} />
         ))}
-        {hiddenTagsCount > 0 && (
-          <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-500">
-            +{hiddenTagsCount}
-          </Badge>
-        )}
         <EditTagsPopover card={card} onUpdate={onUpdate}>
           <button
             data-edit-tags
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-gray-100"
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-gray-100"
             title="Edit tags"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              width="14"
-              height="14"
+              width="12"
+              height="12"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gray-400"
             >
               <path d="M12 20h9" />
               <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
@@ -200,18 +154,12 @@ export function CardItem({ card, onClick, onUpdate }: CardItemProps) {
         </EditTagsPopover>
       </div>
 
-      {/* Footer */}
       <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-        <div className="flex items-center gap-2">
-          <span className="text-gray-400">
-            {getCardTypeIcon(type)}
-          </span>
-          <span className="text-xs text-gray-500">{createdAt}</span>
+        <div className="flex items-center gap-1.5 text-gray-400">
+          {getCardTypeIcon(type)}
+          <span className="text-[10px]">{createdAt}</span>
         </div>
-        <Badge variant="outline" className="text-xs text-gray-500 border-gray-200">
-          {templateName}
-        </Badge>
       </div>
-    </motion.div>
+    </div>
   )
 }

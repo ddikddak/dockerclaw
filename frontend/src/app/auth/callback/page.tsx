@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabaseClient } from '@/contexts/AuthContext'
+import { supabase } from '@/lib/supabase'
 import { Loader2 } from 'lucide-react'
 
 export default function AuthCallbackPage() {
@@ -12,7 +12,7 @@ export default function AuthCallbackPage() {
     const handleAuthCallback = async () => {
       try {
         // Supabase gestiona automàticament els paràmetres de la URL
-        const { data: { session }, error } = await supabaseClient.auth.getSession()
+        const { data: { session }, error } = await supabase.auth.getSession()
         
         if (error) {
           console.error('Auth callback error:', error)

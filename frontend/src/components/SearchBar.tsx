@@ -2,8 +2,6 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { Search, X } from 'lucide-react'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 
 interface SearchBarProps {
   onSearch: (query: string) => void
@@ -13,12 +11,11 @@ interface SearchBarProps {
 
 export function SearchBar({ 
   onSearch, 
-  placeholder = 'Search cards...',
+  placeholder = 'Search...',
   debounceMs = 300
 }: SearchBarProps) {
   const [query, setQuery] = useState('')
 
-  // Debounce la cerca
   useEffect(() => {
     const timeout = setTimeout(() => {
       onSearch(query)
@@ -34,27 +31,23 @@ export function SearchBar({
 
   return (
     <div className="relative flex items-center">
-      <div className="absolute left-3 text-gray-400">
-        <Search className="h-4 w-4" />
-      </div>
+      <Search className="absolute left-0 h-4 w-4 text-gray-400" />
       
-      <Input
+      <input
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder={placeholder}
-        className="pl-10 pr-10 w-full max-w-md bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+        className="w-full bg-transparent border-0 border-b border-gray-200 pl-6 pr-6 py-1.5 text-sm placeholder:text-gray-400 focus:border-gray-400 focus:outline-none transition-colors"
       />
       
       {query && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute right-1 h-7 w-7 text-gray-400 hover:text-gray-600"
+        <button
+          className="absolute right-0 p-0.5 text-gray-400 hover:text-gray-600"
           onClick={handleClear}
         >
-          <X className="h-4 w-4" />
-        </Button>
+          <X className="h-3.5 w-3.5" />
+        </button>
       )}
     </div>
   )

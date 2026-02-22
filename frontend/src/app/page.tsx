@@ -7,11 +7,9 @@ import { MainLayout } from '@/components/layout/MainLayout'
 import { CardList } from '@/components/CardList'
 import { SearchBar } from '@/components/SearchBar'
 import { TagFilter } from '@/components/TagFilter'
-import { Button } from '@/components/ui/button'
 import { api, Card } from '@/lib/api'
 import { toast } from 'sonner'
-import { Plus, Loader2 } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { Plus } from 'lucide-react'
 import { useAppKeyboard } from '@/hooks/useKeyboard'
 
 export default function Home() {
@@ -21,11 +19,9 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
 
-  // Carregar cards de Supabase
   useEffect(() => {
     const loadCards = async () => {
       setIsLoading(true)
-
       try {
         const { cards: fetchedCards } = await api.getCards()
         setCards(fetchedCards)
@@ -54,14 +50,12 @@ export default function Home() {
         card.id === updatedCard.id ? updatedCard : card
       )
     )
-    toast.success('Tags updated successfully')
+    toast.success('Tags updated')
   }, [])
 
-  // Keyboard shortcuts
   useAppKeyboard({
     onNewCard: () => router.push('/cards/new'),
     onEscape: () => {
-      // Clear search/filters on escape
       setSearchQuery('')
       setSelectedTags([])
     }
@@ -69,63 +63,44 @@ export default function Home() {
 
   return (
     <MainLayout>
-      <div className="h-full flex flex-col bg-[#f5f5f5]">
-        {/* Header */}
-        <motion.header 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white border-b border-gray-200 px-6 py-4"
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-              <p className="text-sm text-gray-500 mt-0.5">
-                Manage your cards and content
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
+      <div className="h-full flex flex-col bg-white">
+        {/* Header minimal */}
+        <header className="border-b border-gray-100 px-6 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1 max-w-md">
               <SearchBar 
                 onSearch={handleSearch}
-                placeholder="Search cards..."
+                placeholder="Search..."
               />
-              
-              <Link href="/cards/new">
-                <Button 
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-sm"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Card
-                </Button>
-              </Link>
             </div>
+
+            <Link 
+              href="/cards/new"
+              className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              New Card
+            </Link>
           </div>
 
-          {/* Tag Filter */}
-          <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="mt-4">
             <TagFilter 
               selectedTags={selectedTags}
               onChange={setSelectedTags}
             />
           </div>
-        </motion.header>
+        </header>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-            </div>
-          ) : (
-            <CardList 
-              cards={cards}
-              isLoading={isLoading}
-              searchQuery={searchQuery}
-              selectedTags={selectedTags}
-              onCardClick={handleCardClick}
-              onCardUpdate={handleCardUpdate}
-            />
-          )}
+        <div className="flex-1 overflow-auto bg-gray-50">
+          <CardList 
+            cards={cards}
+            isLoading={isLoading}
+            searchQuery={searchQuery}
+            selectedTags={selectedTags}
+            onCardClick={handleCardClick}
+            onCardUpdate={handleCardUpdate}
+          />
         </div>
       </div>
     </MainLayout>

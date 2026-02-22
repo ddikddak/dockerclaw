@@ -1,15 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import type { Template, TemplateComponent } from '@/types/template'
-
-// Client Supabase per al frontend (accedeix directament a la BD)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('SUPABASE_URL o SUPABASE_ANON_KEY no configurades')
-}
-
-export const supabase = createClient(supabaseUrl, supabaseKey)
 
 // Re-export types
 export type { Template, TemplateComponent }
@@ -422,9 +412,25 @@ class ApiClient {
   }
 
   async createTemplate(template: Omit<Template, 'id' | 'created_at'>): Promise<Template> {
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    // Find agent associated with this user
+    const { data: agent, error: agentError } = await supabase
+      .from('Agent')
+      .select('id')
+      .eq('user_id', user.id)
+      .single()
+    
+    if (agentError || !agent) {
+      throw new Error('No agent found for user. Please create an agent first.')
+    }
+
     const { data, error } = await supabase
       .from('Template')
       .insert({
+        agent_id: agent.id,
         name: template.name,
         description: template.description,
         schema: { components: template.components },
@@ -468,83 +474,6 @@ class ApiClient {
       .eq('id', id)
     
     if (error) throw new Error(error.message)
-  }
-
-  // Activity
-  async getActivity(options?: { targetId?: string; limit?: number }): Promise<{ activities: any[] }> {
-    let query = supabase
-      .from('Activity')
-      .select('*')
-      .order('created_at', { ascending: false })
-    
-    if (options?.targetId) {
-      query = query.eq('target_id', options.targetId)
-    }
-    
-    if (options?.limit) {
-      query = query.limit(options.limit)
-    }
-    
-    const { data, error } = await query
-    
-    if (error) throw new Error(error.message)
-    return { activities: data || [] }
-  }
-
-  // Notifications
-  async getNotifications(options?: { limit?: number }): Promise<{ notifications: any[] }> {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    let query = supabase
-      .from('Notification')
-      .select('*')
-      .eq('user_id', user?.id)
-      .order('created_at', { ascending: false })
-    
-    if (options?.limit) {
-      query = query.limit(options.limit)
-    }
-    
-    const { data, error } = await query
-    
-    if (error) throw new Error(error.message)
-    return { notifications: data || [] }
-  }
-
-  async getUnreadCount(): Promise<{ count: number }> {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    const { count, error } = await supabase
-      .from('Notification')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user?.id)
-      .eq('read', false)
-    
-    if (error) throw new Error(error.message)
-    return { count: count || 0 }
-  }
-
-  async markNotificationRead(notificationId: string): Promise<{ success: boolean }> {
-    const { error } = await supabase
-      .from('Notification')
-      .update({ read: true })
-      .eq('id', notificationId)
-    
-    if (error) throw new Error(error.message)
-    return { success: true }
-  }
-
-  async markAllNotificationsRead(): Promise<{ success: boolean }> {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    const { error } = await supabase
-      .from('Notification')
-      .update({ read: true })
-      .eq('user_id', user?.id)
-      .eq('read', false)
-    
-    if (error) throw new Error(error.message)
-    return { success: true }
   }
 
   // Upload
