@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/popover'
 import { TagInput } from './TagInput'
 import { TagBadge } from './TagBadge'
+import { useToast } from '@/hooks/useToast'
 import { api, Card } from '@/lib/api'
 
 interface EditTagsPopoverProps {
@@ -19,6 +20,7 @@ interface EditTagsPopoverProps {
 }
 
 export function EditTagsPopover({ card, onUpdate, children }: EditTagsPopoverProps) {
+  const toast = useToast()
   const [tags, setTags] = useState<string[]>(card.data?.tags || [])
   const [isSaving, setIsSaving] = useState(false)
   const [open, setOpen] = useState(false)
@@ -28,13 +30,15 @@ export function EditTagsPopover({ card, onUpdate, children }: EditTagsPopoverPro
       setIsSaving(true)
       const updatedCard = await api.updateCardTags(card.id, tags)
       onUpdate?.(updatedCard)
+      toast.tags.updated()
       setOpen(false)
     } catch (error) {
       console.error('Failed to update tags:', error)
+      toast.errors.api('Failed to update tags')
     } finally {
       setIsSaving(false)
     }
-  }, [card.id, tags, onUpdate])
+  }, [card.id, tags, onUpdate, toast])
 
   const handleCancel = useCallback(() => {
     // Reset to original tags

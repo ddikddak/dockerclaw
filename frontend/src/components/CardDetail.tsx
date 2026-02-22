@@ -2,12 +2,15 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { TagBadge } from '@/components/TagBadge'
 import { DynamicForm } from '@/components/DynamicForm'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useToast } from '@/hooks/useToast'
 import type { Card as CardType } from '@/lib/api'
 import type { Template } from '@/types/template'
 import { 
@@ -46,8 +49,12 @@ interface CardDetailProps {
 }
 
 export function CardDetail({ card, template, onDelete, onArchive }: CardDetailProps) {
+  const router = useRouter()
+  const toast = useToast()
   const [isDeleting, setIsDeleting] = useState(false)
   const [isArchiving, setIsArchiving] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
 
   // Extreure dades de la card
   const title = card.data?.title || 'Untitled Card'
@@ -56,12 +63,17 @@ export function CardDetail({ card, template, onDelete, onArchive }: CardDetailPr
   const updatedAt = card.updated_at ? new Date(card.updated_at) : null
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this card?')) return
     setIsDeleting(true)
     try {
       await onDelete?.()
+      toast.card.deleted()
+      router.push('/')
+    } catch (error) {
+      toast.errors.api('Failed to delete card')
+      console.error(error)
     } finally {
       setIsDeleting(false)
+      setShowDeleteConfirm(false)
     }
   }
 
@@ -69,10 +81,19 @@ export function CardDetail({ card, template, onDelete, onArchive }: CardDetailPr
     setIsArchiving(true)
     try {
       await onArchive?.()
+      toast.card.archived()
+      router.push('/')
+    } catch (error) {
+      toast.errors.api('Failed to archive card')
+      console.error(error)
     } finally {
       setIsArchiving(false)
+      setShowArchiveConfirm(false)
     }
   }
+
+  const initiateDelete = () => setShowDeleteConfirm(true)
+  const initiateArchive = () => setShowArchiveConfirm(true)
 
   // Obtenir color del badge segons l'estat
   const getStatusColor = (status: string) => {
@@ -159,7 +180,7 @@ export function CardDetail({ card, template, onDelete, onArchive }: CardDetailPr
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem 
-                    onClick={handleArchive}
+                    onClick={initiateArchive}
                     disabled={isArchiving || card.status === 'archived'}
                   >
                     <Archive className="h-4 w-4 mr-2" />
@@ -167,7 +188,7 @@ export function CardDetail({ card, template, onDelete, onArchive }: CardDetailPr
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
-                    onClick={handleDelete}
+                    onClick={initiateDelete}
                     disabled={isDeleting}
                     className="text-red-600 focus:text-red-600"
                   >
@@ -213,6 +234,30 @@ export function CardDetail({ card, template, onDelete, onArchive }: CardDetailPr
           </div>
         </CardContent>
       </Card>
+      {/* Confirm Dialogs */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete Card"
+        description="Are you sure you want to delete this card? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleDelete}
+        variant="danger"
+        isLoading={isDeleting}
+      />
+
+      <ConfirmDialog
+        open={showArchiveConfirm}
+        onOpenChange={setShowArchiveConfirm}
+        title="Archive Card"
+        description="Are you sure you want to archive this card? You can restore it later from the archives."
+        confirmText="Archive"
+        cancelText="Cancel"
+        onConfirm={handleArchive}
+        variant="default"
+        isLoading={isArchiving}
+      />
     </div>
   )
 }
