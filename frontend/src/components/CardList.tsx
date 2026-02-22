@@ -1,9 +1,10 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Card } from '@/lib/api'
 import { CardItem } from './CardItem'
-import { EmptyState } from './EmptyState'
+import { CardEmptyState } from './CardEmptyState'
 
 interface CardListProps {
   cards: Card[]
@@ -47,6 +48,7 @@ export function CardList({
   onCardClick,
   onCardUpdate
 }: CardListProps) {
+  const router = useRouter()
   
   // Filtrar cards segons cerca i tags
   const filteredCards = cards.filter(card => {
@@ -79,23 +81,24 @@ export function CardList({
 
   // Empty state - no cards at all
   if (cards.length === 0) {
-    return <EmptyState />
+    return (
+      <CardEmptyState 
+        variant="no-cards" 
+        onCreate={() => router.push('/cards/new')}
+      />
+    )
   }
 
   // Empty state - no results from filters
   if (filteredCards.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-center px-4">
-        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-        </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-1">No results found</h3>
-        <p className="text-sm text-gray-500">
-          Try adjusting your search or filters to find what you&apos;re looking for.
-        </p>
-      </div>
+      <CardEmptyState 
+        variant="no-results"
+        onClear={() => {
+          // Reset filters - aquesta funció es crida des del pare
+          window.location.href = '/'
+        }}
+      />
     )
   }
 

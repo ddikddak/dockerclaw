@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { TemplateCard } from './TemplateCard'
+import { TemplateEmptyState } from './TemplateEmptyState'
 import { Template } from '@/types/template'
-import { Plus, FileText } from 'lucide-react'
+import { Plus, Loader2 } from 'lucide-react'
 
 interface TemplateListProps {
   templates: Template[]
@@ -41,25 +42,10 @@ export function TemplateList({ templates, isLoading = false }: TemplateListProps
 
   if (templates.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mb-6">
-          <FileText className="w-10 h-10 text-gray-400" />
-        </div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          No templates yet
-        </h2>
-        <p className="text-gray-500 mb-8 text-center max-w-sm">
-          Create your first template to define reusable card structures with components like text, checklists, and images.
-        </p>
-        <Button 
-          onClick={handleNewTemplate}
-          className="bg-blue-600 hover:bg-blue-700"
-          size="lg"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Create Template
-        </Button>
-      </div>
+      <TemplateEmptyState 
+        variant="no-templates" 
+        onCreate={handleNewTemplate}
+      />
     )
   }
 
