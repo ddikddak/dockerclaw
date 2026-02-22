@@ -105,15 +105,21 @@ export function CardList({
   return (
     <motion.div 
       layout
-      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4"
+      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 p-4"
     >
-      {filteredCards.map((card) => (
-        <CardItem 
-          key={card.id} 
-          card={card} 
-          onClick={onCardClick}
-          onUpdate={onCardUpdate}
-        />
+      {filteredCards.map((card, index) => (
+        <motion.div
+          key={card.id}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: index * 0.05 }}
+        >
+          <CardItem 
+            card={card} 
+            onClick={onCardClick}
+            onUpdate={onCardUpdate}
+          />
+        </motion.div>
       ))}
     </motion.div>
   )

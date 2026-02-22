@@ -1,5 +1,6 @@
 'use client'
 
+import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { 
@@ -34,10 +35,17 @@ export function TemplateCard({ template, onClick }: TemplateCardProps) {
   const uniqueTypes = [...new Set(template.components.map(c => c.type))]
 
   return (
-    <Card 
-      className="cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-1 border-gray-200 bg-white"
-      onClick={onClick}
+    <motion.div
+      whileHover={{ y: -6, scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ duration: 0.2 }}
     >
+      <Card
+        className="cursor-pointer border-gray-200 bg-white overflow-hidden
+                   hover:shadow-xl hover:border-purple-200 transition-all duration-300
+                   hover:bg-gradient-to-b hover:from-white hover:to-purple-50/30"
+        onClick={onClick}
+      >
       <CardContent className="p-5">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
@@ -63,7 +71,7 @@ export function TemplateCard({ template, onClick }: TemplateCardProps) {
           </div>
           <div className="flex items-center gap-1">
             {uniqueTypes.map((type) => (
-              <div 
+              <div
                 key={type}
                 className="w-6 h-6 bg-gray-100 rounded-md flex items-center justify-center"
                 title={componentLabels[type]}
@@ -77,5 +85,6 @@ export function TemplateCard({ template, onClick }: TemplateCardProps) {
         </div>
       </CardContent>
     </Card>
+    </motion.div>
   )
 }

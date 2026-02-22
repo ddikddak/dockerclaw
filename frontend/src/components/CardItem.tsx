@@ -129,13 +129,12 @@ export function CardItem({ card, onClick, onUpdate }: CardItemProps) {
   const type = card.data?.type || 'text'
   const tags: string[] = card.data?.tags || []
   const createdAt = formatRelativeTime(card.created_at)
-  const templateName = 'Default' // TODO: Get template name from template_id
+  const templateName = 'Default'
 
   const visibleTags = tags.slice(0, 3)
   const hiddenTagsCount = tags.length - 3
 
   const handleCardClick = (e: React.MouseEvent) => {
-    // Prevent click if clicking on the edit tags button
     if ((e.target as HTMLElement).closest('[data-edit-tags]')) {
       return
     }
@@ -147,11 +146,16 @@ export function CardItem({ card, onClick, onUpdate }: CardItemProps) {
       layout
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -4, scale: 1.01 }}
+      whileHover={{ 
+        y: -6, 
+        scale: 1.02,
+        transition: { duration: 0.2, ease: "easeOut" }
+      }}
       transition={{ duration: 0.2 }}
       onClick={handleCardClick}
       className="group bg-white rounded-xl border border-gray-200 p-4 cursor-pointer
-                 hover:shadow-lg hover:border-gray-300 transition-all duration-200"
+                 hover:shadow-xl hover:border-blue-200 transition-all duration-300
+                 hover:bg-gradient-to-b hover:from-white hover:to-blue-50/30"
     >
       {/* Thumbnail */}
       <CardThumbnail card={card} />
