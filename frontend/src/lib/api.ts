@@ -495,6 +495,61 @@ class ApiClient {
 
   // API Keys - Ara el frontend no gestiona API keys (només agents)
   // Aquestes funcions s'han eliminat ja que el frontend no necessita API keys
+
+  // Tags
+  async getTags(): Promise<{ tags: string[] }> {
+    const { data, error } = await supabase
+      .from('Card')
+      .select('data')
+      .not('data->tags', 'is', null)
+    
+    if (error) throw new Error(error.message)
+    
+    // Extract unique tags from all cards
+    const allTags = new Set<string>()
+    data?.forEach((card: any) => {
+      const tags = card.data?.tags
+      if (Array.isArray(tags)) {
+        tags.forEach((tag: string) => {
+          if (typeof tag === 'string' && tag.trim()) {
+            allTags.add(tag.toLowerCase().trim())
+          }
+        })
+      }
+    })
+    
+    return { tags: Array.from(allTags).sort() }
+  }
+
+  async updateCardTags(id: string, tags: string[]): Promise<Card> {
+    // Normalize tags: lowercase, trim, max 30 chars, max 10 tags
+    const normalizedTags = tags
+      .map(tag => tag.toLowerCase().trim())
+      .filter(tag => tag.length > 0 && tag.length <= 30)
+      .slice(0, 10)
+    
+    // Get current card data
+    const { data: card, error: fetchError } = await supabase
+      .from('Card')
+      .select('data')
+      .eq('id', id)
+      .single()
+    
+    if (fetchError) throw new Error(fetchError.message)
+    
+    // Update card data with new tags
+    const updatedData = { ...card.data, tags: normalizedTags }
+    
+    const { data, error } = await supabase
+      .from('Card')
+      .update({ data: updatedData })
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return data
+  }
 }
 
 export const api = new ApiClient()
