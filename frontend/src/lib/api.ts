@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import type { Template, TemplateComponent } from '@/types/template'
 
 // Client Supabase per al frontend (accedeix directament a la BD)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -9,6 +10,9 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
+
+// Re-export types
+export type { Template, TemplateComponent }
 
 export type CardType = 'text' | 'code' | 'checklist' | 'image' | 'rich_text' | 'data'
 
@@ -361,14 +365,82 @@ class ApiClient {
   }
 
   // Templates
-  async getTemplates(): Promise<{ templates: any[] }> {
+  async getTemplates(): Promise<{ templates: Template[] }> {
     const { data, error } = await supabase
       .from('Template')
       .select('*')
       .order('created_at', { ascending: false })
     
     if (error) throw new Error(error.message)
-    return { templates: data || [] }
+    // Transform schema to components for compatibility
+    const templates = (data || []).map((t: any) => ({
+      ...t,
+      components: t.schema?.components || [],
+    }))
+    return { templates }
+  }
+
+  async getTemplate(id: string): Promise<Template> {
+    const { data, error } = await supabase
+      .from('Template')
+      .select('*')
+      .eq('id', id)
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return {
+      ...data,
+      components: data.schema?.components || [],
+    }
+  }
+
+  async createTemplate(template: Omit<Template, 'id' | 'created_at'>): Promise<Template> {
+    const { data, error } = await supabase
+      .from('Template')
+      .insert({
+        name: template.name,
+        description: template.description,
+        schema: { components: template.components },
+      })
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return {
+      ...data,
+      components: data.schema?.components || [],
+    }
+  }
+
+  async updateTemplate(id: string, template: Partial<Template>): Promise<Template> {
+    const updateData: any = {}
+    if (template.name !== undefined) updateData.name = template.name
+    if (template.description !== undefined) updateData.description = template.description
+    if (template.components !== undefined) {
+      updateData.schema = { components: template.components }
+    }
+
+    const { data, error } = await supabase
+      .from('Template')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return {
+      ...data,
+      components: data.schema?.components || [],
+    }
+  }
+
+  async deleteTemplate(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('Template')
+      .delete()
+      .eq('id', id)
+    
+    if (error) throw new Error(error.message)
   }
 
   // Activity

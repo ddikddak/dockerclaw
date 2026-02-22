@@ -1,18 +1,36 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import { MainLayout } from '@/components/layout/MainLayout'
+import { TemplateList } from '@/components/TemplateList'
+import { api } from '@/lib/api'
+import { Template } from '@/types/template'
+import { toast } from 'sonner'
 
 export default function TemplatesPage() {
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const { templates } = await api.getTemplates()
+        setTemplates(templates)
+      } catch (error) {
+        toast.error('Failed to load templates')
+        console.error(error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchTemplates()
+  }, [])
+
   return (
     <MainLayout>
-      <div className="h-full flex flex-col items-center justify-center bg-[#f5f5f5] p-8">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Templates</h1>
-          <p className="text-gray-500">Coming soon...</p>
-        </div>
+      <div className="h-full p-6 bg-[#f5f5f5]">
+        <TemplateList templates={templates} isLoading={isLoading} />
       </div>
     </MainLayout>
   )
