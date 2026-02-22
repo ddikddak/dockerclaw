@@ -135,7 +135,6 @@ export function CardLayer() {
       text,
     }: {
       cardId: string
-      componentId: string
       text: string
     }) => api.editText(cardId, 'text', text),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cards'] }),
@@ -148,7 +147,6 @@ export function CardLayer() {
       code,
     }: {
       cardId: string
-      componentId: string
       code: string
     }) => api.editCode(cardId, 'code', code),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cards'] }),
@@ -161,7 +159,6 @@ export function CardLayer() {
       itemIndex,
     }: {
       cardId: string
-      componentId: string
       itemIndex: number
     }) => api.toggleCheck(cardId, 'checklist', itemIndex),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cards'] }),
@@ -174,7 +171,6 @@ export function CardLayer() {
       file,
     }: {
       cardId: string
-      componentId: string
       file: File
     }) => api.uploadImage(cardId, 'image', file),
     onSuccess: () => {
@@ -195,7 +191,7 @@ export function CardLayer() {
   })
 
   const deleteCommentMutation = useMutation({
-    mutationFn: ({ commentId }: { cardId: string; commentId: string }) =>
+    mutationFn: ({ commentId }: { commentId: string }) =>
       api.deleteComment(commentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['comments'] })
@@ -266,7 +262,7 @@ export function CardLayer() {
             addCommentMutation.mutateAsync({ cardId, content })
           }
           onDeleteComment={(cardId, commentId) =>
-            deleteCommentMutation.mutateAsync({ cardId, commentId })
+            deleteCommentMutation.mutateAsync({ commentId })
           }
           onToggleReaction={(cardId, emoji) =>
             toggleReactionMutation.mutateAsync({ cardId, emoji })

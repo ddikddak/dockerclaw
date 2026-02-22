@@ -69,7 +69,7 @@ export function InfiniteCanvas() {
   // Space key listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !e.repeat && !e.target.closest('input, textarea')) {
+      if (e.code === 'Space' && !e.repeat && e.target && !(e.target as Element).closest('input, textarea')) {
         setIsSpacePressed(true)
       }
     }

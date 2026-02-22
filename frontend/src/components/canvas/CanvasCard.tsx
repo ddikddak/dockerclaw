@@ -35,17 +35,17 @@ interface CanvasCardProps {
   currentUserId?: string
   onSelect?: (id: string) => void
   onMove?: (id: string, x: number, y: number) => void
-  onApprove?: (id: string) => Promise<void>
-  onReject?: (id: string) => Promise<void>
-  onDelete?: (id: string) => Promise<void>
-  onArchive?: (id: string) => Promise<void>
-  onEditText?: (id: string, componentId: string, text: string) => Promise<void>
-  onEditCode?: (id: string, componentId: string, code: string) => Promise<void>
-  onToggleCheck?: (id: string, componentId: string, itemIndex: number, checked: boolean) => Promise<void>
-  onUploadImage?: (id: string, componentId: string, file: File) => Promise<void>
-  onAddComment?: (cardId: string, content: string) => Promise<void>
-  onDeleteComment?: (cardId: string, commentId: string) => Promise<void>
-  onToggleReaction?: (cardId: string, emoji: Reaction['emoji']) => Promise<void>
+  onApprove?: (id: string) => Promise<any>
+  onReject?: (id: string) => Promise<any>
+  onDelete?: (id: string) => Promise<any>
+  onArchive?: (id: string) => Promise<any>
+  onEditText?: (id: string, componentId: string, text: string) => Promise<any>
+  onEditCode?: (id: string, componentId: string, code: string) => Promise<any>
+  onToggleCheck?: (id: string, componentId: string, itemIndex: number, checked: boolean) => Promise<any>
+  onUploadImage?: (id: string, componentId: string, file: File) => Promise<any>
+  onAddComment?: (cardId: string, content: string) => Promise<any>
+  onDeleteComment?: (cardId: string, commentId: string) => Promise<any>
+  onToggleReaction?: (cardId: string, emoji: Reaction['emoji']) => Promise<any>
 }
 
 export function CanvasCard({
