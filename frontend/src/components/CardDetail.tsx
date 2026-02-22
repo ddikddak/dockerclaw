@@ -13,6 +13,12 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useToast } from '@/hooks/useToast'
 import type { Card as CardType } from '@/lib/api'
 import type { Template } from '@/types/template'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { 
   Edit, 
   Trash2, 

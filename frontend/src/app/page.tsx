@@ -12,6 +12,7 @@ import { api, Card } from '@/lib/api'
 import { toast } from 'sonner'
 import { Plus, Loader2 } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { useAppKeyboard } from '@/hooks/useKeyboard'
 
 export default function Home() {
   const router = useRouter()
@@ -55,6 +56,16 @@ export default function Home() {
     )
     toast.success('Tags updated successfully')
   }, [])
+
+  // Keyboard shortcuts
+  useAppKeyboard({
+    onNewCard: () => router.push('/cards/new'),
+    onEscape: () => {
+      // Clear search/filters on escape
+      setSearchQuery('')
+      setSelectedTags([])
+    }
+  })
 
   return (
     <MainLayout>
