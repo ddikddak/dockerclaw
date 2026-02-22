@@ -31,6 +31,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-json-view-lite": "^2.5.0",
+    "react-markdown": "^10.1.0",
     "react-simple-code-editor": "^0.14.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",

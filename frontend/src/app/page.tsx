@@ -1,108 +1,68 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { MainLayout } from '@/components/layout/MainLayout'
-import { CardList } from '@/components/CardList'
-import { SearchBar } from '@/components/SearchBar'
-import { TagFilter } from '@/components/TagFilter'
-import { api, Card } from '@/lib/api'
-import { toast } from 'sonner'
+import { useState, useEffect } from 'react'
 import { Plus } from 'lucide-react'
-import { useAppKeyboard } from '@/hooks/useKeyboard'
+import { BoardList } from '@/components/BoardList'
+import { CreateBoardModal } from '@/components/CreateBoardModal'
+import { api } from '@/lib/api'
+
+interface Board {
+  id: string
+  name: string
+  description: string | null
+  document_count: number
+  created_at: string
+}
 
 export default function Home() {
-  const router = useRouter()
-  const [cards, setCards] = useState<Card[]>([])
+  const [boards, setBoards] = useState<Board[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [isModalOpen, setIsModalOpen] = useState(false)
+
+  const fetchBoards = async () => {
+    try {
+      const data = await api.getBoards()
+      setBoards(data.boards)
+    } catch (err) {
+      console.error('Failed to fetch boards:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const loadCards = async () => {
-      setIsLoading(true)
-      try {
-        const { cards: fetchedCards } = await api.getCards()
-        setCards(fetchedCards)
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load cards'
-        toast.error(errorMessage)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    loadCards()
+    fetchBoards()
   }, [])
-
-  const handleSearch = useCallback((query: string) => {
-    setSearchQuery(query)
-  }, [])
-
-  const handleCardClick = useCallback((card: Card) => {
-    router.push(`/cards/${card.id}`)
-  }, [router])
-
-  const handleCardUpdate = useCallback((updatedCard: Card) => {
-    setCards(prevCards => 
-      prevCards.map(card => 
-        card.id === updatedCard.id ? updatedCard : card
-      )
-    )
-    toast.success('Tags updated')
-  }, [])
-
-  useAppKeyboard({
-    onNewCard: () => router.push('/cards/new'),
-    onEscape: () => {
-      setSearchQuery('')
-      setSelectedTags([])
-    }
-  })
 
   return (
-    <MainLayout>
-      <div className="h-full flex flex-col bg-white">
-        {/* Header minimal */}
-        <header className="border-b border-gray-100 px-6 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex-1 max-w-md">
-              <SearchBar 
-                onSearch={handleSearch}
-                placeholder="Search..."
-              />
-            </div>
-
-            <Link 
-              href="/cards/new"
-              className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              New Card
-            </Link>
+    <main className="min-h-screen bg-white">
+      <div className="max-w-3xl mx-auto px-6 py-12">
+        <header className="flex items-center justify-between mb-10">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">Boards</h1>
+            <p className="mt-1 text-sm text-gray-400">Manage your document boards</p>
           </div>
-
-          <div className="mt-4">
-            <TagFilter 
-              selectedTags={selectedTags}
-              onChange={setSelectedTags}
-            />
-          </div>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
+          >
+            <Plus size={16} />
+            New Board
+          </button>
         </header>
 
-        {/* Content */}
-        <div className="flex-1 overflow-auto bg-gray-50">
-          <CardList 
-            cards={cards}
-            isLoading={isLoading}
-            searchQuery={searchQuery}
-            selectedTags={selectedTags}
-            onCardClick={handleCardClick}
-            onCardUpdate={handleCardUpdate}
-          />
-        </div>
+        {isLoading ? (
+          <div className="py-16 text-center text-gray-400">Loading...</div>
+        ) : (
+          <BoardList boards={boards} />
+        )}
       </div>
-    </MainLayout>
+
+      <CreateBoardModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={fetchBoards}
+      />
+    </main>
   )
 }

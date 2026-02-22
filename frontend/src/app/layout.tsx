@@ -1,43 +1,24 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { Providers } from '@/components/Providers'
-import { Toaster } from '@/components/ui/sonner'
-import { AuthProvider } from '@/contexts/AuthContext'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
-import "./globals.css";
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+import './globals.css'
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: "DockerClaw - C2H Platform",
-  description: "Cards to Humans platform for AI agent workflows",
-};
+  title: 'DockerClaw',
+  description: 'Multi-board document management for agents',
+}
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: {
+  children: React.ReactNode
+}) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ErrorBoundary>
-          <AuthProvider>
-            <Providers>
-              {children}
-              <Toaster position="bottom-right" />
-            </Providers>
-          </AuthProvider>
-        </ErrorBoundary>
+      <body className={inter.className}>
+        {children}
       </body>
     </html>
-  );
+  )
 }
