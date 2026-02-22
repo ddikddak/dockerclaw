@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { InfiniteCanvas } from '@/components/canvas/InfiniteCanvas'
 import { useBoardStore } from '@/lib/store'
@@ -10,7 +10,6 @@ import { Loader2 } from 'lucide-react'
 
 export default function Home() {
   const { cards, setCards, setLoading, isLoading, error, setError } = useBoardStore()
-  const [isInitialized, setIsInitialized] = useState(false)
 
   // Carregar cards de Supabase
   useEffect(() => {
@@ -35,14 +34,13 @@ export default function Home() {
         toast.error(errorMessage)
       } finally {
         setLoading(false)
-        setIsInitialized(true)
       }
     }
 
     loadCards()
   }, [setCards, setLoading, setError])
 
-  if (!isInitialized || isLoading) {
+  if (isLoading) {
     return (
       <MainLayout>
         <div className="w-full h-full flex items-center justify-center">

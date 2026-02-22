@@ -1,22 +1,15 @@
 'use client'
 
 import { useRef, useState, useCallback, useEffect } from 'react'
-import { motion, useMotionValue, useTransform } from 'framer-motion'
-import { ZoomIn, ZoomOut, Maximize, Plus } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { ZoomIn, ZoomOut, Maximize } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useCanvasStore, useBoardStore } from '@/lib/store'
-import { CanvasCard } from './CanvasCard'
-import { api } from '@/lib/api'
-import { toast } from 'sonner'
+import { useCanvasStore } from '@/lib/store'
+import { CardLayer } from './CardLayer'
 
-interface InfiniteCanvasProps {
-  children?: React.ReactNode
-}
-
-export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
+export function InfiniteCanvas() {
   const containerRef = useRef<HTMLDivElement>(null)
   const { zoom, pan, setZoom, setPan, setIsDragging } = useCanvasStore()
-  const { cards, selectedCardId, setSelectedCardId, updateCardPosition } = useBoardStore()
 
   const [isPanning, setIsPanning] = useState(false)
   const [isSpacePressed, setIsSpacePressed] = useState(false)
@@ -25,8 +18,10 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
   // Pan amb middle mouse o space+drag
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      // Middle mouse button (button 1) or space+left click
-      if (e.button === 1 || (isSpacePressed && e.button === 0)) {
+      // Middle mouse button (button 1) or space+left click on canvas background
+      const isCanvasBackground = (e.target as HTMLElement).dataset.canvas === 'true'
+      
+      if (e.button === 1 || (isSpacePressed && e.button === 0 && isCanvasBackground)) {
         e.preventDefault()
         setIsPanning(true)
         setIsDragging(true)
@@ -60,8 +55,8 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
         e.preventDefault()
         const delta = e.deltaY > 0 ? -0.1 : 0.1
         setZoom(zoom + delta)
-      } else {
-        // Scroll normal per moure'ns pel canvas
+      } else if (!e.shiftKey) {
+        // Scroll normal per moure'ns pel canvas (pan)
         setPan({
           x: pan.x - e.deltaX,
           y: pan.y - e.deltaY,
@@ -74,7 +69,7 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
   // Space key listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !e.repeat) {
+      if (e.code === 'Space' && !e.repeat && !e.target.closest('input, textarea')) {
         setIsSpacePressed(true)
       }
     }
@@ -94,24 +89,6 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
     }
   }, [])
 
-  // Centrar vista al carregar
-  useEffect(() => {
-    if (containerRef.current && cards.length > 0) {
-      const container = containerRef.current
-      const centerX = container.clientWidth / 2
-      const centerY = container.clientHeight / 2
-
-      // Calcular el centre de totes les cards
-      const avgX = cards.reduce((sum, card) => sum + (card.x || 0), 0) / cards.length
-      const avgY = cards.reduce((sum, card) => sum + (card.y || 0), 0) / cards.length
-
-      setPan({
-        x: centerX - avgX * zoom,
-        y: centerY - avgY * zoom,
-      })
-    }
-  }, [])
-
   const handleZoomIn = () => setZoom(zoom + 0.1)
   const handleZoomOut = () => setZoom(zoom - 0.1)
   const handleReset = () => {
@@ -119,44 +96,22 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
     setPan({ x: 0, y: 0 })
   }
 
-  const handleCardDrag = async (id: string, x: number, y: number) => {
-    // Update optimista
-    updateCardPosition(id, x, y)
-
-    // Persistir a Supabase
-    try {
-      await api.updateCardPosition(id, x, y)
-    } catch (error) {
-      toast.error('Failed to save card position')
-      console.error('Error saving position:', error)
-    }
-  }
-
-  const handleCanvasClick = (e: React.MouseEvent) => {
-    // Desseleccionar si clickem al canvas (no a una card)
-    if (e.target === e.currentTarget || (e.target as HTMLElement).dataset.canvas === 'true') {
-      setSelectedCardId(null)
-    }
-  }
-
   return (
     <div
       ref={containerRef}
-      className="w-full h-full relative overflow-hidden cursor-grab active:cursor-grabbing"
+      className="w-full h-full relative overflow-hidden"
       style={{
         backgroundColor: '#f5f5f5',
-        backgroundImage: `
-          radial-gradient(circle, #e0e0e0 1px, transparent 1px)
-        `,
+        backgroundImage: `radial-gradient(circle, #e0e0e0 1px, transparent 1px)`,
         backgroundSize: `${20 * zoom}px ${20 * zoom}px`,
         backgroundPosition: `${pan.x}px ${pan.y}px`,
+        cursor: isPanning ? 'grabbing' : isSpacePressed ? 'grab' : 'default',
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       onWheel={handleWheel}
-      onClick={handleCanvasClick}
       data-canvas="true"
     >
       {/* Transform layer */}
@@ -167,19 +122,7 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
         }}
         data-canvas="true"
       >
-        {/* Cards */}
-        {cards.map((card) => (
-          <CanvasCard
-            key={card.id}
-            card={card}
-            isSelected={selectedCardId === card.id}
-            onSelect={() => setSelectedCardId(card.id)}
-            onDrag={(x, y) => handleCardDrag(card.id, x, y)}
-            zoom={zoom}
-          />
-        ))}
-
-        {children}
+        <CardLayer />
       </div>
 
       {/* Controls */}
@@ -216,7 +159,7 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
       </div>
 
       {/* Help text */}
-      <div className="absolute bottom-4 left-4 text-xs text-gray-400 bg-white/80 px-3 py-2 rounded-lg">
+      <div className="absolute bottom-4 left-4 text-xs text-gray-400 bg-white/80 px-3 py-2 rounded-lg backdrop-blur-sm">
         <p>🖱️ Middle click + drag to pan</p>
         <p>⌨️ Space + drag to pan</p>
         <p>🔍 Ctrl + scroll to zoom</p>
