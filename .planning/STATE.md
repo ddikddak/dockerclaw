@@ -1,7 +1,7 @@
 ---
 current_phase: v1-multi-board
-last_action: 2026-02-23 09:30 UTC
-status: ready-to-start
+last_action: 2026-02-23 10:00 UTC
+status: in-progress
 ---
 
 ## 🎯 DockerClaw v1 Multi-Board - Status Actual
@@ -50,8 +50,8 @@ Ultra-minimalista, estil Notion/Linear:
 
 | Fase | Nom | Estimació | Status | Assignat |
 |------|-----|-----------|--------|----------|
-| 1 | Backend (DB + API) | 45 min | ready-to-start | - |
-| 2 | Frontend - Board List | 30 min | pending | - |
+| 1 | Backend (DB + API) | ✅ **completed** | 45 min | Sub-agent |
+| 2 | Frontend - Board List | 🔄 **in-progress** | 30 min | - |
 | 3 | Frontend - Board View | 45 min | pending | - |
 | 4 | Frontend - Agents Page | 15 min | pending | - |
 | 5 | Polish & Deploy | 15 min | pending | - |
@@ -74,6 +74,6 @@ Ultra-minimalista, estil Notion/Linear:
 
 ## 🚀 Next Step
 
-**Començar Fase 1: Backend (Database + API)**
+**Començar Fase 2: Frontend - Board List (Dashboard)**
 
 Veure: `v1-multi-board-PLAN.md` per especificacions completes.

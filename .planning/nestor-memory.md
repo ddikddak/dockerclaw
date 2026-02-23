@@ -1,281 +1,193 @@
-# Nestor Memory — dockerclaw
+# Nestor Memory — DockerClaw v1
 
 ## Mapa del Codi
 
-### Backend API (Next.js API Routes)
+### Estructura Frontend
 ```
-dockerclaw-web/frontend/src/app/api/
-├── agents/
-│   ├── register/route.ts      # POST /api/agents/register
-│   └── [id]/
-│       └── events/route.ts    # GET /api/agents/:id/events (polling)
-├── cards/
-│   ├── route.ts               # GET/POST /api/cards
-│   └── [id]/
-│       ├── actions/route.ts   # POST /api/cards/:id/actions (card-level)
-│       ├── comments/route.ts  # GET/POST /api/cards/:id/comments
-│       ├── reactions/route.ts # GET/POST /api/cards/:id/reactions
-│       └── components/
-│           └── [componentId]/
-│               └── actions/route.ts  # POST component-level actions
-├── comments/
-│   └── [id]/
-│       └── route.ts           # DELETE /api/comments/:id
-├── templates/
-│   └── route.ts               # GET/POST /api/templates
-└── upload/
-    └── route.ts               # POST /api/upload (images to Supabase Storage)
-```
-
-### Frontend Components
-```
-dockerclaw-web/frontend/src/components/
-├── Canvas.tsx                 # Figma-like infinite canvas
-├── Board.tsx                  # Kanban board
-├── Column.tsx                 # Kanban column (with mutations)
-├── Card.tsx                   # Card with action buttons, comments, reactions
-└── card/
-    ├── index.ts               # Barrel exports
-    ├── TextComponent.tsx      # Editable text (in-place editing)
-    ├── CodeComponent.tsx      # Editable code with PrismJS syntax highlight
-    ├── ChecklistComponent.tsx # Toggle checkboxes
-    ├── ImageComponent.tsx     # Upload, preview, lightbox
-    ├── RichTextComponent.tsx  # TipTap WYSIWYG editor
-    ├── DataComponent.tsx      # JSON tree viewer
-    ├── Comments.tsx           # Comments section with add/delete
-    └── Reactions.tsx          # Emoji reactions (👍 ❤️ 🎉 🚀 👀)
+frontend/src/
+├── app/                      # Next.js App Router
+│   ├── page.tsx             # Dashboard amb infinite canvas
+│   ├── settings/keys/page.tsx
+│   └── layout.tsx
+├── components/
+│   ├── Canvas.tsx           # (deprecated - usar canvas/)
+│   ├── Card.tsx             # Card complet (per vista detall)
+│   ├── layout/
+│   │   ├── Sidebar.tsx      # Sidebar amb links i user menu
+│   │   └── MainLayout.tsx   # Layout base sidebar + content
+│   ├── canvas/
+│   │   ├── InfiniteCanvas.tsx  # Canvas infinit amb zoom/pan
+│   │   └── CanvasCard.tsx      # Card draggable al canvas
+│   ├── ActivityTimeline.tsx
+│   ├── Notifications.tsx
+│   ├── ui/                  # shadcn/ui components
+│   └── card/                # Card subcomponents
+├── lib/
+│   ├── api.ts               # API client (Supabase)
+│   ├── store.ts             # Zustand store (canvas + board)
+│   └── supabase.ts          # Supabase client
+└── hooks/
+    └── useSSE.ts            # SSE hook
 ```
 
-### Library Files
+### Estructura Backend
 ```
-dockerclaw-web/frontend/src/lib/
-├── api.ts                     # API client with all methods
-├── auth.ts                    # API key validation
-├── supabase.ts                # Supabase client
-└── validation.ts              # Zod schemas
-```
-
-## API Endpoints (Next.js API Routes)
-
-| Endpoint | Method | Auth | Descripció |
-|----------|--------|------|------------|
-| `/api/agents/register` | POST | No | Registrar nou agent |
-| `/api/agents/:id/events` | GET | X-API-Key | Polling d'accions |
-| `/api/templates` | GET | X-API-Key | Llistar templates |
-| `/api/templates` | POST | X-API-Key | Crear template |
-| `/api/cards` | GET | X-API-Key | Llistar cards |
-| `/api/cards` | POST | X-API-Key | Crear card |
-| `/api/cards/:id/actions` | POST | X-API-Key | Card actions (approve, reject, delete, archive, move) |
-| `/api/cards/:id/comments` | GET | X-API-Key | Llistar comentaris |
-| `/api/cards/:id/comments` | POST | X-API-Key | Afegir comentari |
-| `/api/cards/:id/reactions` | GET | X-API-Key | Llistar reaccions |
-| `/api/cards/:id/reactions` | POST | X-API-Key | Toggle reacció (add/remove) |
-| `/api/comments/:id` | DELETE | X-API-Key | Esborrar comentari |
-| `/api/upload` | POST | No | Upload images to Supabase Storage |
-
-## Components Suportats
-
-| Type | Component | Features |
-|------|-----------|----------|
-| `text` | TextComponent | In-place editing, multiline |
-| `code` | CodeComponent | PrismJS syntax highlight, copy button, language detection |
-| `checklist` | ChecklistComponent | Toggle checkboxes, progress bar |
-| `image` | ImageComponent | Drag-drop upload, preview, lightbox, Supabase Storage |
-| `rich_text` | RichTextComponent | TipTap WYSIWYG editor (bold, italic, headings, lists, links) |
-| `data` | DataComponent | react-json-view-lite tree view, copy JSON |
-| `comments` | Comments | Add, list, delete comments with author info |
-| `reactions` | Reactions | 5 emoji reactions (👍 ❤️ 🎉 🚀 👀) with toggle |
-
-### Taules
-- **agents**: id, name, email, api_key, webhook_url, created_at
-- **templates**: id, agent_id, name, schema, created_at
-- **cards**: id, template_id, agent_id, data, status, created_at
-- **events**: id, agent_id, type, payload, status, created_at
-- **actions**: id, card_id, agent_id, type, action, payload, status, created_at
-- **comments**: id, card_id, author_type, author_id, author_name, content, created_at, updated_at
-- **reactions**: id, card_id, author_type, author_id, author_name, emoji, created_at
-
-### SQL Migration (Comments & Reactions Tables)
-```sql
--- Create comments table
-CREATE TABLE comments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  card_id UUID REFERENCES cards(id) ON DELETE CASCADE,
-  author_type TEXT CHECK (author_type IN ('human', 'agent')),
-  author_id TEXT NOT NULL,
-  author_name TEXT,
-  content TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP
-);
-
--- Create reactions table
-CREATE TABLE reactions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  card_id UUID REFERENCES cards(id) ON DELETE CASCADE,
-  author_type TEXT CHECK (author_type IN ('human', 'agent')),
-  author_id TEXT NOT NULL,
-  author_name TEXT,
-  emoji TEXT CHECK (emoji IN ('👍', '❤️', '🎉', '🚀', '👀')),
-  created_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE(card_id, author_id, emoji)
-);
-
--- Create indexes for performance
-CREATE INDEX comments_card_id_idx ON comments(card_id);
-CREATE INDEX reactions_card_id_idx ON reactions(card_id);
+backend/src/
+├── routes/
+│   ├── keys.ts              # API keys management
+│   └── ...                  # Altres rutes
+├── middleware/
+│   └── auth.ts              # Auth middleware
+└── index.ts                 # App entry
 ```
 
-## Accions Implementades
+### Database (Supabase)
+- **Card**: id, template_id, agent_id, data, status, x, y, created_at, updated_at
+- **Template**: id, name, schema, created_at
+- **Comment**: id, card_id, content, author_*, created_at
+- **Reaction**: id, card_id, emoji, author_*
+- **ApiKey**: id, name, keyHash, isActive
 
-### Card-Level Actions
-- `approve` → status: 'approved'
-- `reject` → status: 'rejected'
-- `delete` → status: 'deleted'
-- `archive` → status: 'archived'
-- `move` → canviar columna/status
+## Fases v1 — Plan de Treball
 
-### Component-Level Actions
-- `edit_text` → update card.data.text
-- `edit_code` → update card.data.code
-- `toggle_check` → toggle checklist item
-- `upload_image` → upload image to Supabase Storage
-- `add_comment` → afegir comentari
+### FASE 1: UI Base + Canvas Miro (Hores 1-4)
+**Objectiu:** Layout amb sidebar + canvas infinit estil Miro
 
-### Interactions
-- `add_comment` → POST /api/cards/:id/comments
-- `delete_comment` → DELETE /api/comments/:id
-- `toggle_reaction` → POST /api/cards/:id/reactions (toggle add/remove)
+**Fitxers creats/modificats:**
+- ✅ `src/components/layout/Sidebar.tsx` (nou)
+- ✅ `src/components/layout/MainLayout.tsx` (nou)
+- ✅ `src/components/canvas/InfiniteCanvas.tsx` (nou)
+- ✅ `src/components/canvas/CanvasCard.tsx` (nou)
+- ✅ `src/app/page.tsx` (modificar)
+- ✅ `src/lib/store.ts` (ja tenia canvas state)
+- ✅ `migrations/001_add_card_coordinates.sql` (migration)
+- ✅ Eliminats: `Column.tsx`, `DndProvider.tsx`
 
-## Frontend Features
+**Acceptance Criteria:**
+- [x] Sidebar visible amb tots els links
+- [x] Canvas amb grid visible
+- [x] Zoom funciona (Ctrl+scroll)
+- [x] Pan funciona (drag)
+- [x] Cards es mostren a la seva posició x,y
+- [x] Cards es poden arrossegar per moure-les
+- [x] Posició persisteix a Supabase
 
-### In-Place Editing
-- **Text**: Doble clic per editar, Ctrl+Enter per guardar, Esc per cancel·lar
-- **Code**: Doble clic per editar, Ctrl+S per guardar, Esc per cancel·lar
-- **Rich Text**: Doble clic per editar, toolbar amb bold/italic/headings/lists/links, Ctrl+Enter per guardar
-- **Image**: Drag-drop upload, click per lightbox, click icona per canviar
+---
 
-### Action Buttons
-- ✅ Approve (green)
-- ❌ Reject (red)
-- 🗑️ Delete (gray)
-- 📋 Archive (gray)
-- 💬 Comments (toggle comments section)
+### FASE 2: Sistema de Tags (Hores 5-6)
+**Objectiu:** Tags per organitzar cards
 
-### Comments
-- Secció desplegable sota la card
-- Input textarea amb Cmd+Enter per enviar
-- Llista de comentaris amb autor, data i badge "bot" per agents
-- Delete button per l'autor
-- Scroll area per llistes llargues
+**Fitxers:**
+- Migration: `tags` array a Card
+- `src/components/TagInput.tsx` (nou)
+- `src/components/TagFilter.tsx` (nou)
+- Modificar `Card.tsx` per mostrar tags
+- RLS policies per user_id
 
-### Reactions
-- 5 botons emoji: 👍 ❤️ 🎉 🚀 👀
-- Toggle (highlight blau si usuari ha reaccionat)
-- Count per emoji
-- Compact display al footer de la card
+---
 
-### Toggle Checkboxes
-- Click directe per toggle
-- Optimistic update (UI first)
-- Progress bar visual
+### FASE 3: Editor de Templates (Hores 7-12)
+**Objectiu:** Crear templates amb components
 
-### Syntax Highlight
-- PrismJS amb tema 'tomorrow'
-- Suport: TypeScript, JavaScript, JSX, TSX, Python, Bash, JSON, CSS, SQL, YAML, Markdown
-- Copy to clipboard button
+**Fitxers:**
+- `src/app/templates/page.tsx` (llistat)
+- `src/app/templates/new/page.tsx` (editor)
+- `src/components/template/TemplateEditor.tsx`
+- `src/components/template/ComponentBuilder.tsx`
+- `src/components/template/ComponentPreview.tsx`
 
-### JSON Viewer
-- react-json-view-lite amb tree view col·lapsable
-- Copy JSON button
+**Components de template:**
+- text (short/long)
+- checklist
+- image
+- code
+
+---
+
+### FASE 4: Cards com Documents (Hores 13-18)
+**Objectiu:** Crear/veure/editar cards omplint templates
+
+**Fitxers:**
+- `src/components/card/CardForm.tsx` (formulari dinàmic)
+- `src/components/card/CardDocument.tsx` (vista read-only)
+- `src/app/cards/[id]/page.tsx` (vista card)
+- `src/app/cards/new/page.tsx` (crear card)
+- Modificar `CanvasCard.tsx` per preview
+
+---
+
+### FASE 5: API per Agents (Hores 19-20)
+**Objectiu:** Documentació i verificació endpoints
+
+**Fitxers:**
+- `src/app/docs/api/page.tsx` (pàgina docs)
+- Verificar endpoints backend funcionen
+- Exemples de codi (curl, Python, Node)
+
+---
+
+### FASE 6: Polish (Hores 21-24)
+**Objectiu:** Animacions, responsive, gestió errors
+
+**Fitxers:**
+- Animacions Framer Motion
+- Responsive sidebar (drawer mòbil)
+- Error boundaries
+- Toast notifications
+- Empty states
 
 ## Històric de Canvis
 
-### 2026-02-20 - Phase 05 Interactive (Comments & Reactions)
-- Creada taula `comments` a Supabase amb author_type, author_id, author_name, content
-- Creada taula `reactions` a Supabase amb emoji constraint (👍 ❤️ 🎉 🚀 👀)
-- Creat endpoint GET/POST /api/cards/:id/comments
-- Creat endpoint DELETE /api/comments/:id
-- Creat endpoint GET/POST /api/cards/:id/reactions (toggle)
-- Creat component Comments.tsx amb add, list, delete
-- Creat component Reactions.tsx amb 5 emojis toggle
-- Creat CompactReactions per display al footer
-- Actualitzat Card.tsx per integrar Comments i Reactions
-- Actualitzat Column.tsx amb mutations per comments/reactions
-- Actualitzat api.ts amb nous tipus Comment, Reaction i mètodes API
-- Polling cada 5 segons per comments/reactions
+### 2026-02-22 — FASE 1 Completa: Canvas Miro
+- **Fase:** 1 (UI Base)
+- **Estat:** ✅ COMPLETADA
+- **Canvis:** 
+  - Sidebar amb links i user menu (col·lapsable)
+  - Canvas infinit amb grid pattern
+  - Zoom (Ctrl+scroll) i pan (middle click / space+drag)
+  - Cards draggables amb posició x,y persistent
+  - Migració database: columnes x, y a Card
+  - Eliminats components kanban (Column, DndProvider)
+- **Commit:** "feat: implement infinite canvas with sidebar and draggable cards"
+- **Àrees de Risc:** Cap - tot funciona correctament
 
-### 2026-02-20 - Phase 04 Rich Components
-- Instal·lades dependències: @tiptap/react, prismjs, react-json-view-lite
-- Creat ImageComponent amb upload drag-drop, preview, i lightbox
-- Actualitzat CodeComponent amb PrismJS syntax highlight i copy button
-- Creat RichTextComponent amb TipTap editor WYSIWYG
-- Creat DataComponent amb react-json-view-lite per JSON
-- Creat endpoint /api/upload per pujar imatges a Supabase Storage
-- Actualitzat Card.tsx per suportar nous tipus (image, rich_text, data)
-- Actualitzat Column.tsx amb mutations per tots els components
-- Afegit sonner per notificacions toast
+### 2026-02-22 — Inici v1: Canvas Miro
+- **Fase:** 1 (UI Base)
+- **Estat:** En progrés
+- **Canvis:** Refactor complet de kanban a canvas infinit
+- **Àrees de Risc:** Posició x,y de cards, zoom/pan performance
 
-### 2025-02-20 - Phase 03 Actions & Webhooks
-- Migrated Express backend to Next.js API Routes
-- Created Actions table in Supabase
-- Implemented card-level actions (approve, reject, delete, archive, move)
-- Implemented component-level actions (edit_text, edit_code, toggle_check)
-- Added polling endpoint for agents: GET /api/agents/:id/events
-- Frontend: In-place editing for text and code
-- Frontend: Action buttons (approve, reject, delete, archive)
-- Frontend: Toggle checkboxes with optimistic updates
-- Updated API client with all new methods
+## Àrees de Risc (Regressions Probables)
 
-### 2025-02-19 - Phase 02 Frontend Foundation
-- Setup Next.js 15 + React 19 + Tailwind v4 + shadcn/ui
-- Configuració Supabase client
-- Implementació Canvas Figma-like amb zoom/pan/grid
-- Kanban drag-drop amb @dnd-kit
-- Card components (Text, Code, Checklist)
+⚠️ **Posició de cards** — Canvi de kanban columns a x,y coordinates
+⚠️ **Drag & drop** — Nova llibreria o implementació custom
+⚠️ **Zoom/Pan** — Performance amb moltes cards
+⚠️ **Store** — Zustand store refactor
 
-### 2025-02-19 - Phase 01 API Templates
-- Setup projecte Node.js + Express + TypeScript
-- Configuració Prisma ORM amb PostgreSQL
-- Schema de base de dades (Agent, Template, Card, Event)
-- Implementació endpoints core
-- Middleware d'autenticació amb API Key
-- Validació amb Zod
+## Tasks Actives
 
-## Patterns i Decisions
+- [x] FASE 1: UI Base + Canvas Miro (COMPLETADA)
+- [ ] FASE 2: Sistema de Tags  
+- [ ] FASE 3: Editor de Templates
+- [ ] FASE 4: Cards com Documents
+- [ ] FASE 5: API per Agents
+- [ ] FASE 6: Polish
 
-### API Routes Pattern
-- Validació d'API key via `getApiKeyFromRequest` i `validateApiKey`
-- Zod per validació d'entrades
-- Supabase per queries a base de dades
-- Respostes amb `NextResponse.json()`
-- Usar `getSupabase()` helper async per evitar errors de build amb env vars
+## Decisions Tècniques Preses
 
-### Frontend Patterns
-- Components amb `editable` prop per activar edició
-- `onSave` i `onToggle` callbacks per comunicar canvis
-- Optimistic updates per millor UX
-- Framer Motion per animacions
-- React Query per data fetching i caching
-- Polling per actualitzacions temps real (5s)
+1. **✅ Drag & drop:** Implementació custom amb mouse events (més simple i control total)
+2. **✅ Zoom/Pan:** Implementació custom amb CSS transform (scale + translate)
+3. **✅ Grid:** CSS background-image amb radial-gradient
+4. **✅ State:** Zustand store existent ampliat amb selectedCardId
 
-### Seguretat
-- API keys al header `X-API-Key`
-- Validació que agent només accedeix als seus recursos
-- Sanitització d'inputs amb Zod
-- ON DELETE CASCADE per comments/reactions quan s'esborra card
+## Decisions Tècniques Pendents
 
-## Àrees de Risc
+1. **Llibreria drag & drop per FASE 4:** @dnd-kit si cal més potència
 
-1. **Supabase RLS**: Assegurar que Row Level Security estigui configurat correctament
-2. **API Key exposure**: Mai exposar al client, usar server-side calls
-3. **Polling frequency**: Agents han de fer polling raonable (cada 5-10s)
-4. **Race conditions**: Edició simultània de la mateixa card
-5. **Comments/Reactions sync**: Polling pot tenir delay de 5s
+## Notes per Nestor
 
-## Tasks Pendents
-- [ ] Configurar RLS policies a Supabase
-- [ ] Implementar rate limiting
-- [ ] WebSocket alternativa a polling
-- [ ] Tests d'integració
-- [ ] Real-time subscriptions per comments/reactions (Supabase Realtime)
+- ELIMINAR codi kanban (Column, Board tradicional)
+- MANTENIR Card.tsx però adaptar-lo a nova UI
+- USAR Framer Motion per animacions suaus
+- PERSISTIR x,y a Supabase (migration necessària)
+- TESTAR zoom/pan amb 50+ cards (performance)
