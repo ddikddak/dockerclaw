@@ -1,99 +1,179 @@
+# DockerClaw v1 - Roadmap Multi-Board
+
+**Versió:** v1 Multi-Board Minimalista  
+**Data:** 2026-02-23  
+**Filosofia:** KISS - Keep It Simple, Stupid  
+**Documentació:** `v1-multi-board-PLAN.md`
+
 ---
-milestone: 1
-status: in-progress
+
+## 🎯 Visió
+
+Eina C2H (Computer-to-Human) ultra-simple:
+- **Boards** com a contenidors de documents
+- Cada board té **API Key** per autenticar agents
+- **Documents** en markdown amb autor i data
+- **Zero complexitat:** No templates, no components, no tags, no comments
+
 ---
 
-# Roadmap - DockerClaw (C2H)
+## 📅 Fases d'Implementació
 
-## Fase 1 — Core Platform
-**Goal:** Agents poden crear templates, omplir cards, humans veuen boards
+### FASE 1: Backend (45 min)
+**Status:** ready-to-start  
+**Goal:** Database schema + API endpoints
 
-### 01-api-templates
-- Status: ready
-- Tasks:
-  - [ ] Setup Node.js + Express + PostgreSQL
-  - [ ] Model Template (schema JSONB)
-  - [ ] Endpoints: POST/GET templates
-  - [ ] Validació de schema de components
-- REQ-IDs: REQ-001
+**Tasks:**
+- [ ] Crear migració Prisma (Board + Document)
+- [ ] Afegir indexos (board_id, created_at)
+- [ ] `GET /api/boards` - Llistar boards
+- [ ] `POST /api/boards` - Crear board (generar api_key)
+- [ ] `GET /api/boards/:id` - Obtenir board
+- [ ] `POST /api/boards/:id/documents` - Crear document (auth X-API-Key)
+- [ ] `GET /api/boards/:id/documents` - Llistar documents
+- [ ] `GET /api/boards/:id/documents/:docId` - Obtenir document
+- [ ] Middleware auth per verificar X-API-Key
 
-### 02-api-cards
-- Status: pending
-- Tasks:
-  - [ ] Model Card (instància de template)
-  - [ ] Endpoint crear card (omplir template)
-  - [ ] Endpoint llistar cards per board
-  - [ ] Validació de dades vs template schema
-- REQ-IDs: REQ-003
+**Deliverable:** API funcional amb autenticació simple per API key.
 
-### 03-components-basic
-- Status: pending
-- Tasks:
-  - [ ] Component `text` (markdown)
-  - [ ] Component `code` (text pla inicial)
-  - [ ] Component `checklist` (array de items)
-- REQ-IDs: REQ-002
+---
 
-### 04-frontend-boards
-- Status: pending
-- Tasks:
-  - [ ] Setup Next.js + shadcn/ui
-  - [ ] Vista Board (Kanban columns)
-  - [ ] Card component (render components)
-- REQ-IDs: REQ-004, REQ-005
+### FASE 2: Frontend - Board List (30 min)
+**Status:** pending  
+**Goal:** Pàgina principal amb llistat de boards
 
-## Fase 2 — Actions & Webhooks (CRÍTIC)
-**Goal:** Tancar el feedback loop Agent ↔ Human
+**Tasks:**
+- [ ] Pàgina `/` - Dashboard
+- [ ] Component `BoardList`
+- [ ] Component `BoardCard` (nom, descripció, count de documents)
+- [ ] Botó "New Board" → modal/form
+- [ ] Formulari crear board (nom, descripció opcional)
+- [ ] Mostrar api_key després de crear (amb copy button)
 
-### 05-actions
-- Status: pending
-- Tasks:
-  - [ ] Sistema d'accions de Template (approve, reject)
-  - [ ] Sistema d'accions de Component (edit_text, toggle_check)
-  - [ ] Webhook dispatcher (enviar a agents)
-  - [ ] Configuració webhook per agent
-- REQ-IDs: REQ-006, REQ-007, REQ-008
+**Deliverable:** Usuari pot crear boards i veure'ls en una llista.
 
-## Fase 3 — Rich Components
-**Goal:** Components visuals
+---
 
-### 06-rich-components
-- [ ] Component `image` (upload + display)
-- [ ] Component `code` amb syntax highlight
-- [ ] Component `text` amb rich editor (TipTap)
-- [ ] Component `data` (JSON viewer)
-- REQ-IDs: REQ-009, REQ-010, REQ-011, REQ-012
+### FASE 3: Frontend - Board View (45 min)
+**Status:** pending  
+**Goal:** Veure documents d'un board
 
-## Fase 4 — Interactive
-**Goal:** Més interactivitat
+**Tasks:**
+- [ ] Pàgina `/boards/[id]`
+- [ ] Fetch board info + documents
+- [ ] Header amb nom del board + botó "Copy API Key"
+- [ ] Component `DocumentList`
+- [ ] Component `DocumentItem` (títol, preview 150 chars, autor, data)
+- [ ] Pàgina `/boards/[id]/documents/[docId]` - Document viewer
+- [ ] Render markdown del document
+- [ ] Botó "Tornar al board"
 
-### 07-interactive
-- [ ] Comments (acció add_comment)
-- [ ] Reaccions (emoji)
-- REQ-IDs: REQ-013
+**Deliverable:** Usuari pot navegar a un board i veure/lllegir documents.
 
-## Fase 5 — Real-time & History
-**Goal:** Experiència fluida
+---
 
-### 08-realtime
-- [ ] Server-Sent Events per updates
-- [ ] History/audit log de totes les accions
-- REQ-IDs: REQ-014, REQ-015
+### FASE 4: Frontend - Agents Page (15 min)
+**Status:** pending  
+**Goal:** Documentació per agents OpenClaw
 
-### 09-notifications
-- [ ] Webhooks avançats
-- [ ] Email notifications (futur)
-- REQ-IDs: REQ-016
+**Tasks:**
+- [ ] Pàgina `/agents`
+- [ ] Explicació: "Com enviar documents a un board"
+- [ ] Mostrar: necessites `board_id` i `api_key`
+- [ ] Endpoint documentat: `POST /api/boards/{board_id}/documents`
+- [ ] Header requerit: `X-API-Key: {api_key}`
+- [ ] Exemple curl complet amb placeholders
+- [ ] Exemple en Node.js/JavaScript
 
-## Fase 6 — Scale
-**Goal:** Producció
+**Deliverable:** Agents poden veure com enviar documents via API.
 
-### 10-scale
-- [ ] Auth system
-- [ ] Permisos i roles
-- REQ-IDs: REQ-017, REQ-018
+---
 
-### 11-marketplace
-- [ ] Template marketplace
-- [ ] Template sharing
-- REQ-IDs: REQ-019
+### FASE 5: Polish & Deploy (15 min)
+**Status:** pending  
+**Goal:** Acabat de polir i desplegar
+
+**Tasks:**
+- [ ] Aplicar CSS minimalista (estil Notion/Linear)
+- [ ] Verificar responsive (mòbil funciona)
+- [ ] Check TypeScript zero errors
+- [ ] Build passa (`npm run build`)
+- [ ] Deploy backend (Cloud Run)
+- [ ] Deploy frontend (Vercel)
+- [ ] Test end-to-end: crear board → enviar document via curl → veure a UI
+
+**Deliverable:** v1 completa desplegada i funcional.
+
+---
+
+## 📊 Timeline Resum
+
+| Fase | Nom | Estimació | Deliverable | Status |
+|------|-----|-----------|-------------|--------|
+| 1 | Backend | 45 min | API funcional | ready-to-start |
+| 2 | Board List | 30 min | Dashboard boards | pending |
+| 3 | Board View | 45 min | Veure documents | pending |
+| 4 | Agents Page | 15 min | Docs per agents | pending |
+| 5 | Polish & Deploy | 15 min | v1 producció | pending |
+
+**Total estimat: ~2.5 hores**
+
+---
+
+## ⚠️ Dependencies
+
+```
+Fase 1 (Backend)
+    ↓
+Fase 2 (Board List) - pot començar quan Fase 1 té DB
+    ↓
+Fase 3 (Board View)
+    ↓
+Fase 4 (Agents Page) - independent, pot fer-se en paral·lel
+    ↓
+Fase 5 (Polish & Deploy)
+```
+
+---
+
+## 🗑️ ELIMINAR (codi antic no utilitzat)
+
+Després de la implementació, eliminar:
+- ❌ Templates
+- ❌ Editor de templates  
+- ❌ Components (text, checklist, image, code)
+- ❌ Drag & drop
+- ❌ Tags
+- ❌ Comments
+- ❌ Reactions
+- ❌ SSE / Real-time
+- ❌ Activity Log
+- ❌ Notifications
+- ❌ Complex auth (JWT, sessions)
+- ❌ Sidebar complicada
+- ❌ Dashboard complex
+
+**Només:** Board list → Board view → Document view
+
+---
+
+## ✅ Acceptance Criteria Global
+
+- [ ] Usuari pot crear board (genera api_key automàticament)
+- [ ] Board apareix a la llista del dashboard
+- [ ] Agent pot fer POST a `/api/boards/{id}/documents` amb header X-API-Key
+- [ ] Document apareix al board immediatament després del POST
+- [ ] Usuari pot veure llista de documents d'un board
+- [ ] Usuari pot obrir i llegir un document (markdown renderitzat)
+- [ ] Disseny ultra-minimalista (estil Notion/Linear)
+- [ ] Zero errors TypeScript
+- [ ] Build passa sense warnings
+- [ ] Desplegat a producció
+
+---
+
+## 🚀 Next Step
+
+**Començar Fase 1: Backend (Database + API)**
+
+Agent assignat: **Nestor** (desenvolupador backend)

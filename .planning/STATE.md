@@ -1,50 +1,79 @@
 ---
-current_phase: 05-interactive
-last_action: 2026-02-20 15:21 UTC
-status: in-progress
+current_phase: v1-multi-board
+last_action: 2026-02-23 09:30 UTC
+status: ready-to-start
 ---
 
-## Posició Actual
-Fase 05: Interactive - ✅ IMPLEMENTADA I DESPLEGADA
+## 🎯 DockerClaw v1 Multi-Board - Status Actual
 
-## Completat Fase 04:
-- ✅ Image Component (upload, preview, lightbox)
-- ✅ Code Component (PrismJS syntax highlight)
-- ✅ Rich Text Component (TipTap WYSIWYG editor)
-- ✅ Data Component (JSON tree viewer)
-- ✅ Endpoint /api/upload per imatges
-- ✅ Integració amb Card renderer
+**Data:** 2026-02-23  
+**Concepte:** Múltiples boards minimalistes, cada un amb ID i API Key pròpia  
+**Estimació Total:** ~2.5 hores
 
-## Completat Fase 05:
-- ✅ Comments (add_comment, llistar, eliminar)
-- ✅ Reactions (emoji amb toggle)
-- ✅ API endpoints /api/cards/:id/comments
-- ✅ API endpoints /api/cards/:id/reactions
-- ✅ Webhooks add_comment i add_reaction
-- ✅ UI components integrats
+---
 
-## Bugs Arreglats:
-- ✅ BUG-001 a BUG-008 (tots arreglats)
+## Visió
+- **Board** = Contenidor de documents (té ID + API Key)
+- **Agents** = Tenen API Key d'un board específic, fan push a board_id
+- **Humans** = Accedeixen a boards via `/boards/{id}`, veuen documents
 
-## Infraestructura Producció:
-- ✅ Frontend Vercel: https://frontend-j3yyszol5-ddikddaks-projects.vercel.app
-- ✅ Backend Cloud Run: https://dockerclaw-backend-141346793650.europe-west1.run.app (rev 00008-9t8)
-- ✅ Supabase DB: https://blendizvcpgdxiedjvqk.supabase.co
-- ✅ Secret Manager: SUPABASE_SERVICE_KEY protegit
+## Base de Dades (2 taules)
+- `Board` (id, name, description, api_key, created_at)
+- `Document` (id, board_id, title, content, author, created_at, updated_at)
 
-## Status Producció
-- ✅ Health: OK
-- ✅ Comments: Funcionals
-- ✅ Reactions: Funcionals
-- ✅ Webhooks: Actius
+## API Endpoints
+- `GET /api/boards` - Llistar boards
+- `POST /api/boards` - Crear board (genera api_key)
+- `GET /api/boards/:id` - Obtenir board
+- `POST /api/boards/:id/documents` - Crear document (auth via api_key)
+- `GET /api/boards/:id/documents` - Llistar documents
+- `GET /api/boards/:id/documents/:docId` - Obtenir document
 
-## Next Steps
-🚀 Fase 05 completada! Considerar:
-- Fase 06: Real-time & History (SSE, audit log)
-- Millores UX/UI
-- Testing addicional
+## UI Pages
+1. **/** - Dashboard (llistat de boards)
+2. **/boards/:id** - Board view (documents)
+3. **/boards/:id/documents/:docId** - Document viewer
+4. **/agents** - Documentació per agents
+5. **/boards/new** - Crear nou board
 
-## Resume Info
-Fase 04 completada en ~13 minuts.
-Fase 05 completada en ~8h (amb breaks).
-Infraestructura 100% operativa amb comments i reactions! 🎉
+## Design System
+Ultra-minimalista, estil Notion/Linear:
+- Fons: `#fafafa` (gris molt clar)
+- Text: `#171717` (quasi negre) / `#737373` (secundari)
+- Borders: `#e5e5e5`
+- Container: `max-width: 720px`, centrat
+- Molt whitespace, zero shadows excessius
+
+---
+
+## 📅 Fases d'Implementació
+
+| Fase | Nom | Estimació | Status | Assignat |
+|------|-----|-----------|--------|----------|
+| 1 | Backend (DB + API) | 45 min | ready-to-start | - |
+| 2 | Frontend - Board List | 30 min | pending | - |
+| 3 | Frontend - Board View | 45 min | pending | - |
+| 4 | Frontend - Agents Page | 15 min | pending | - |
+| 5 | Polish & Deploy | 15 min | pending | - |
+
+---
+
+## ✅ Acceptance Criteria Global
+
+- [ ] Usuari pot crear board (genera api_key)
+- [ ] Board apareix a la llista
+- [ ] Agent pot fer POST a `/api/boards/{id}/documents` amb api_key
+- [ ] Document apareix al board immediatament
+- [ ] Usuari pot veure llista de documents del board
+- [ ] Usuari pot obrir i llegir document
+- [ ] Disseny ultra-minimalista (estil Notion/Linear)
+- [ ] Zero errors TypeScript
+- [ ] Build passa
+
+---
+
+## 🚀 Next Step
+
+**Començar Fase 1: Backend (Database + API)**
+
+Veure: `v1-multi-board-PLAN.md` per especificacions completes.
