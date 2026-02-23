@@ -1,48 +1,50 @@
 ---
-current_phase: v1-multi-board
-last_action: 2026-02-23 10:20 UTC
+current_phase: v2-infinite-canvas
+last_action: 2026-02-23 17:00 UTC
 status: in-progress
 ---
 
-## 🎯 DockerClaw v1 Multi-Board - Status Actual
+## 🎯 DockerClaw v2 — Infinite Collaborative Canvas
+
+**Visió:** "Miro from scratch — AI Native"
 
 **Data:** 2026-02-23  
-**Concepte:** Múltiples boards minimalistes, cada un amb ID i API Key pròpia  
-**Estimació Total:** ~2.5 hores
+**Versió:** 2.0  
+**Estimació:** 6-9 dies (6 fases)
 
 ---
 
-## Visió
-- **Board** = Contenidor de documents (té ID + API Key)
-- **Agents** = Tenen API Key d'un board específic, fan push a board_id
-- **Humans** = Accedeixen a boards via `/boards/{id}`, veuen documents
+## 📋 Descripció
 
-## Base de Dades (2 taules)
-- `Board` (id, name, description, api_key, created_at)
-- `Document` (id, board_id, title, content, author, created_at, updated_at)
+DockerClaw és un **canvas infinit col·laboratiu** amb una REST API dissenyada per consumir per agents d'IA.
 
-## API Endpoints
-- `GET /api/boards` - Llistar boards
-- `POST /api/boards` - Crear board (genera api_key)
-- `GET /api/boards/:id` - Obtenir board
-- `POST /api/boards/:id/documents` - Crear document (auth via api_key)
-- `GET /api/boards/:id/documents` - Llistar documents
-- `GET /api/boards/:id/documents/:docId` - Obtenir document
+**El que tenim (base v1):**
+- ✅ Backend Node.js/Express/Prisma desplegat a Cloud Run
+- ✅ Frontend Next.js desplegat a Vercel
+- ✅ Sistema multi-board amb documents
+- ✅ Autenticació per API key (`dc_`)
 
-## UI Pages
-1. **/** - Dashboard (llistat de boards) ✅
-2. **/boards/:id** - Board view (documents)
-3. **/boards/:id/documents/:docId** - Document viewer
-4. **/agents** - Documentació per agents
-5. **/boards/new** - Crear nou board ✅
+**El que construïm (v2):**
+- 🆕 Infinite canvas (tldraw SDK)
+- 🆕 Canvas items: sticky notes, shapes, frames, connectors
+- 🆕 Real-time collaboration (Yjs, WebSockets)
+- 🆕 Cursors, presence
+- 🆕 Image uploads
+- 🆕 Webhooks
+- 🆕 Python SDK
 
-## Design System
-Ultra-minimalista, estil Notion/Linear:
-- Fons: `#fafafa` (gris molt clar)
-- Text: `#171717` (quasi negre) / `#737373` (secundari)
-- Borders: `#e5e5e5`
-- Container: `max-width: 720px`, centrat
-- Molt whitespace, zero shadows excessius
+---
+
+## 🏗️ Arquitectura
+
+**Stack:**
+- **Backend:** Node.js 22 / Express 5 / Prisma 6
+- **Frontend:** Next.js 16 + tldraw SDK
+- **Database:** Supabase PostgreSQL
+- **Real-time:** Yjs CRDT + y-websocket
+- **Cache/PubSub:** Redis
+- **Storage:** Google Cloud Storage (GCS)
+- **Deploy:** Cloud Run (backend) + Vercel (frontend)
 
 ---
 
@@ -50,50 +52,48 @@ Ultra-minimalista, estil Notion/Linear:
 
 | Fase | Nom | Estimació | Status | Assignat |
 |------|-----|-----------|--------|----------|
-| 1 | Backend (DB + API) | ✅ **completed** | 45 min | Sub-agent |
-| 2 | Frontend - Board List | ✅ **completed** | 30 min | Sub-agent |
-| 3 | Frontend - Board View | 45 min | pending | - |
-| 4 | Frontend - Agents Page | 15 min | pending | - |
-| 5 | Polish & Deploy | 15 min | pending | - |
+| 0 | Foundation & Infrastructure | 1-2 dies | 🔄 **in-progress** | - |
+| 1 | Core API (Canvas Items CRUD) | 2-3 dies | pending | - |
+| 2 | Canvas UI (tldraw integration) | 2-3 dies | pending | - |
+| 3 | Real-Time Collaboration | 2-3 dies | pending | - |
+| 4 | Documents, Images & Connectors | 2 dies | pending | - |
+| 5 | AI Integration (Webhooks, SDK) | 1-2 dies | pending | - |
+
+**Total estimat: 10-15 dies**
 
 ---
 
-## ✅ Fase 2: Frontend - Board List - COMPLETAT
+## ✅ Phase 0: Foundation & Infrastructure — IN PROGRESS
 
-### Components implementats:
-- ✅ `BoardList` - Llista vertical de boards
-- ✅ `BoardCard` - Targeta minimalista amb hover effect
-- ✅ `CreateBoardModal` - Modal per crear boards amb API key display
-- ✅ `EmptyState` - Estat buit amb CTA
+### Tasks:
+- [ ] docker-compose per desenvolupament local
+- [ ] Configurar logging estructurat (Pino)
+- [ ] Setup test framework (Vitest)
+- [ ] Migrar DB schema v2 (CanvasItem, etc.)
+- [ ] Configurar Redis per pub/sub
+- [ ] Setup GCS per imatges
 
-### Features:
-- ✅ Dashboard mostra llistat de boards des de `GET /api/boards`
-- ✅ Botó "New Board" obre modal
-- ✅ Formulari amb nom (requerit) i descripció (opcional)
-- ✅ Després de crear, es mostra l'API key amb botó "Copy"
-- ✅ Click en un board navega a `/boards/[id]`
-- ✅ Empty state amb icona i CTA
-- ✅ Disseny ultra-minimalista aplicat (colors Notion/Linear)
-- ✅ Build passa sense errors
+### Acceptance Criteria:
+- [ ] `docker-compose up` funciona en local
+- [ ] Tests passen amb `npm test`
+- [ ] DB migrada a nova schema
+- [ ] Redis connectat i funcional
 
 ---
 
-## ✅ Acceptance Criteria Global
+## 📁 Documentació
 
-- [x] Usuari pot crear board (genera api_key)
-- [x] Board apareix a la llista
-- [ ] Agent pot fer POST a `/api/boards/{id}/documents` amb api_key
-- [ ] Document apareix al board immediatament
-- [ ] Usuari pot veure llista de documents del board
-- [ ] Usuari pot obrir i llegir document
-- [x] Disseny ultra-minimalista (estil Notion/Linear)
-- [x] Zero errors TypeScript
-- [x] Build passa
+- **[PRD.md](PRD.md)** — Product Requirements Document
+- **[architecture/](architecture/)** — System design, API spec, data model
+- **[phases/](phases/)** — Fases 0-5 detallades
+- **[reference/](reference/)** — NFRs, security, SDK spec
 
 ---
 
 ## 🚀 Next Step
 
-**Començar Fase 3: Frontend - Board View (Documents)**
+**Començar Phase 0: Foundation & Infrastructure**
 
-Veure: `v1-multi-board-PLAN.md` per especificacions completes.
+Primera task: Setup docker-compose i migrar DB schema v2.
+
+Veure: `phases/PHASE_0_FOUNDATION.md` per detalls.
