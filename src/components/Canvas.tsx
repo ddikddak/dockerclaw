@@ -195,6 +195,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   // Drag and drop state
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+  const dragOverFolderIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const max = blocks.reduce((acc, b) => Math.max(acc, b.z || 1), 1);
@@ -452,27 +453,68 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     setDraggedBlockId(blockId);
   }, []);
 
+  // Helper to set both state and ref for dragOverFolderId
+  const updateDragOverFolderId = useCallback((id: string | null) => {
+    dragOverFolderIdRef.current = id;
+    setDragOverFolderId(id);
+  }, []);
+
+  // Handle mouse-based drag move — hit-test folders for visual feedback
+  const handleBlockDragMove = useCallback((screenX: number, screenY: number) => {
+    const canvasPos = screenToCanvas(screenX, screenY);
+    const hoveredFolder = blocks.find(
+      (b) =>
+        b.type === 'folder' &&
+        b.id !== draggedBlockId &&
+        canvasPos.x >= b.x &&
+        canvasPos.x <= b.x + b.w &&
+        canvasPos.y >= b.y &&
+        canvasPos.y <= b.y + b.h
+    );
+    updateDragOverFolderId(hoveredFolder?.id || null);
+  }, [blocks, draggedBlockId, screenToCanvas, updateDragOverFolderId]);
+
   // Handle dropping a block onto a folder
-  const handleDropOnFolder = useCallback((folderId: string, droppedBlockId: string) => {
+  // Combines folder update + block delete in a single state update to avoid race conditions
+  const handleDropOnFolder = useCallback(async (folderId: string, droppedBlockId: string) => {
     const draggedBlock = blocks.find(b => b.id === droppedBlockId);
     const folderBlock = blocks.find(b => b.id === folderId);
-    
+
     if (draggedBlock && folderBlock && draggedBlock.id !== folderBlock.id) {
       const folderItem = blockToFolderItem(draggedBlock);
       const folderData = folderBlock.data as { items?: FolderItem[] };
-      
-      handleBlockDataUpdate(folderId, {
-        items: [...(folderData.items || []), folderItem]
-      });
-      handleBlockDelete(draggedBlock.id);
+      const updatedFolderData = { ...folderBlock.data, items: [...(folderData.items || []), folderItem] };
+
+      // Persist both changes
+      await BlockService.update(folderId, { data: updatedFolderData });
+      await BlockService.delete(droppedBlockId);
+
+      // Single state update: update folder data AND remove dragged block
+      onBlocksChange(
+        blocks
+          .map(b => b.id === folderId ? { ...b, data: updatedFolderData } : b)
+          .filter(b => b.id !== droppedBlockId)
+      );
     }
-    
+
     setDraggedBlockId(null);
-    setDragOverFolderId(null);
-  }, [blocks, handleBlockDataUpdate, handleBlockDelete]);
+    updateDragOverFolderId(null);
+  }, [blocks, onBlocksChange, updateDragOverFolderId]);
+
+  // Handle mouse-based drag end — drop onto folder if hovering one
+  const handleBlockDragEnd = useCallback((blockId: string, screenX?: number, screenY?: number) => {
+    const folderId = dragOverFolderIdRef.current;
+    if (folderId && screenX != null && screenY != null) {
+      handleDropOnFolder(folderId, blockId);
+    } else {
+      setDraggedBlockId(null);
+      updateDragOverFolderId(null);
+    }
+  }, [handleDropOnFolder, updateDragOverFolderId]);
 
   // Handle dragging folder item out to create a block
-  const handleFolderItemDragOut = useCallback((folderId: string, item: FolderItem, screenX: number, screenY: number) => {
+  // Combines block creation + folder item removal in a single state update
+  const handleFolderItemDragOut = useCallback(async (folderId: string, item: FolderItem, screenX: number, screenY: number) => {
     const canvasPos = screenToCanvas(screenX, screenY);
     const defaultSizes: Record<string, { w: number; h: number }> = {
       doc: { w: 400, h: 500 },
@@ -483,8 +525,8 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       text: { w: 300, h: 150 },
     };
     const size = defaultSizes[item.type] || { w: 300, h: 200 };
-    
-    BlockService.create({
+
+    const newBlock = await BlockService.create({
       id: crypto.randomUUID(),
       boardId: board.id,
       type: item.type as BlockType,
@@ -494,47 +536,69 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       h: size.h,
       z: maxZIndex + 1,
       data: item.data as any,
-    }).then(newBlock => {
-      setMaxZIndex(prev => prev + 1);
-      onBlocksChange([...blocks, newBlock]);
-      
-      const folderBlock = blocks.find(b => b.id === folderId);
-      if (folderBlock) {
-        const folderData = folderBlock.data as { items?: FolderItem[] };
-        handleBlockDataUpdate(folderId, {
-          items: (folderData.items || []).filter((i: FolderItem) => i.id !== item.id)
-        });
-      }
     });
-  }, [board.id, blocks, maxZIndex, onBlocksChange, handleBlockDataUpdate, screenToCanvas]);
 
-  // Handle canvas drop for folder items dragged out
+    setMaxZIndex(prev => prev + 1);
+
+    // Build updated blocks in one pass: remove item from folder + add new block
+    const folderBlock = blocks.find(b => b.id === folderId);
+    let updatedBlocks = blocks;
+    if (folderBlock) {
+      const folderData = folderBlock.data as { items?: FolderItem[] };
+      const updatedFolderData = {
+        ...folderBlock.data,
+        items: (folderData.items || []).filter((i: FolderItem) => i.id !== item.id),
+      };
+      await BlockService.update(folderId, { data: updatedFolderData });
+      updatedBlocks = blocks.map(b => b.id === folderId ? { ...b, data: updatedFolderData } : b);
+    }
+
+    onBlocksChange([...updatedBlocks, newBlock]);
+  }, [board.id, blocks, maxZIndex, onBlocksChange, screenToCanvas]);
+
+  // Handle canvas drop for folder items dragged out and blocks dropped on folders
   const handleCanvasDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    
+
     try {
       const dragData = JSON.parse(e.dataTransfer.getData('application/json') || '{}');
-      
-      if (dragData.source === 'folderItem' && dragData.folderItem && dragData.folderId) {
-        const rect = canvasRef.current?.getBoundingClientRect();
-        if (rect) {
-          const screenX = e.clientX;
-          const screenY = e.clientY;
-          handleFolderItemDragOut(dragData.folderId, dragData.folderItem, screenX, screenY);
+
+      if (dragData.source === 'block' && dragData.blockId && dragOverFolderId) {
+        // Block dropped onto a folder — convert to folder item
+        if (dragData.blockId !== dragOverFolderId) {
+          handleDropOnFolder(dragOverFolderId, dragData.blockId);
         }
+      } else if (dragData.source === 'folderItem' && dragData.folderItem && dragData.folderId) {
+        // Folder item dragged out onto the canvas
+        handleFolderItemDragOut(dragData.folderId, dragData.folderItem, e.clientX, e.clientY);
       }
     } catch (err) {
       console.error('Canvas drop error:', err);
     }
-    
+
     setDraggedBlockId(null);
-    setDragOverFolderId(null);
-  }, [handleFolderItemDragOut]);
+    updateDragOverFolderId(null);
+  }, [handleFolderItemDragOut, handleDropOnFolder, dragOverFolderId, updateDragOverFolderId]);
 
   const handleCanvasDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-  }, []);
+
+    // Hit-test folder blocks to show drop target feedback
+    const canvasPos = screenToCanvas(e.clientX, e.clientY);
+    const hoveredFolder = blocks.find(
+      (b) =>
+        b.type === 'folder' &&
+        canvasPos.x >= b.x &&
+        canvasPos.x <= b.x + b.w &&
+        canvasPos.y >= b.y &&
+        canvasPos.y <= b.y + b.h
+    );
+    const newFolderId = hoveredFolder?.id || null;
+    if (newFolderId !== dragOverFolderId) {
+      updateDragOverFolderId(newFolderId);
+    }
+  }, [blocks, screenToCanvas, dragOverFolderId, updateDragOverFolderId]);
 
   const handleConvertToTask = useCallback(async (item: InboxItem) => {
     const kanbanBlock = blocks.find(b => b.type === 'kanban');
@@ -662,8 +726,8 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
             data={{ ...(block.data as any), id: block.id }}
             onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)}
             isDropTarget={dragOverFolderId === block.id}
-            onDragOver={() => draggedBlockId && setDragOverFolderId(block.id)}
-            onDragLeave={() => setDragOverFolderId(null)}
+            onDragOver={() => draggedBlockId && updateDragOverFolderId(block.id)}
+            onDragLeave={() => updateDragOverFolderId(null)}
             onDropBlock={(droppedBlockId) => handleDropOnFolder(block.id, droppedBlockId)}
             onItemDragOut={(item, x, y) => handleFolderItemDragOut(block.id, item, x, y)}
           />
@@ -765,7 +829,8 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
               agents={agents}
               onToggleAgentAccess={(agentId) => toggleAgentAccess(block.id, agentId)}
               onDragStart={() => handleBlockDragStart(block.id)}
-              onDragEnd={() => setDraggedBlockId(null)}
+              onDragEnd={(screenX, screenY) => handleBlockDragEnd(block.id, screenX, screenY)}
+              onDragMove={handleBlockDragMove}
             >
               {renderBlockContent(block)}
             </BlockWrapper>

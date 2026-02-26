@@ -57,7 +57,7 @@ export function BoardSelector({
   const BoardListContent = (
     <>
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+      <div className="h-14 px-4 border-b border-gray-200 flex items-center justify-between">
         <h2 className="font-semibold text-gray-800">My Boards</h2>
         <Dialog open={isCreating} onOpenChange={setIsCreating}>
           <DialogTrigger asChild>

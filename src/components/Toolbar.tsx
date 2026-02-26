@@ -186,7 +186,7 @@ export function Toolbar({
       </div>
 
       {/* Center: Add Block */}
-      <div className="flex-shrink-0">
+      <div className="flex-shrink-0 mx-3 md:mx-6">
         {/* Mobile: Sheet */}
         <div className="md:hidden">{MobileAddBlockSheet}</div>
         {/* Desktop: Dropdown */}
@@ -194,7 +194,7 @@ export function Toolbar({
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+      <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
         {/* Export - hidden on small mobile */}
         <Button 
           variant="outline" 

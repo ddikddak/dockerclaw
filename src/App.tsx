@@ -156,7 +156,7 @@ function App() {
         y: y ?? viewportY,
         w: defaultSize.w,
         h: defaultSize.h,
-        z: blocks.length + 1,
+        z: blocks.reduce((max, b) => Math.max(max, b.z || 0), 0) + 1,
         agentAccess: [],
         data: createDefaultBlockData(type) as any,
       });
@@ -239,7 +239,7 @@ function App() {
 
   return (
     <div className="h-screen flex bg-white overflow-hidden">
-      <Toaster position="top-right" />
+      <Toaster position="top-right" closeButton toastOptions={{ style: { zIndex: 99999 } }} />
       
       {/* Desktop Sidebar */}
       <div className="hidden md:block">

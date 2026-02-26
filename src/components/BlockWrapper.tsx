@@ -62,7 +62,8 @@ interface BlockWrapperProps {
   agents?: Agent[];
   onToggleAgentAccess?: (agentId: string) => void;
   onDragStart?: () => void;
-  onDragEnd?: () => void;
+  onDragEnd?: (screenX?: number, screenY?: number) => void;
+  onDragMove?: (screenX: number, screenY: number) => void;
 }
 
 export function BlockWrapper({
@@ -85,6 +86,7 @@ export function BlockWrapper({
   onToggleAgentAccess,
   onDragStart,
   onDragEnd,
+  onDragMove,
 }: BlockWrapperProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState(title || '');
@@ -123,53 +125,62 @@ export function BlockWrapper({
 
   const startDrag = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (block.locked || isConnecting) return;
-    
+
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    
+
     dragRef.current = {
       startX: clientX,
       startY: clientY,
       blockX: block.x,
       blockY: block.y,
     };
-    
+
     setIsDragging(true);
     onSelect();
-    
+    onDragStart?.();
+
+    let lastClientX = clientX;
+    let lastClientY = clientY;
+
     const handleMove = (moveE: MouseEvent | TouchEvent) => {
       if (!dragRef.current) return;
-      
+
       const moveClientX = 'touches' in moveE ? moveE.touches[0].clientX : moveE.clientX;
       const moveClientY = 'touches' in moveE ? moveE.touches[0].clientY : moveE.clientY;
-      
+      lastClientX = moveClientX;
+      lastClientY = moveClientY;
+
       // Account for zoom in drag calculation
       const dx = (moveClientX - dragRef.current.startX) / zoom;
       const dy = (moveClientY - dragRef.current.startY) / zoom;
-      
+
       onUpdate({
         x: dragRef.current.blockX + dx,
         y: dragRef.current.blockY + dy,
       });
+
+      onDragMove?.(moveClientX, moveClientY);
     };
-    
+
     const handleUp = () => {
       dragRef.current = null;
       setIsDragging(false);
+      onDragEnd?.(lastClientX, lastClientY);
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
       window.removeEventListener('touchmove', handleMove);
       window.removeEventListener('touchend', handleUp);
     };
-    
+
     window.addEventListener('mousemove', handleMove, { passive: false });
     window.addEventListener('mouseup', handleUp);
     window.addEventListener('touchmove', handleMove, { passive: false });
     window.addEventListener('touchend', handleUp);
-    
+
     e.preventDefault();
     e.stopPropagation();
-  }, [block.locked, isConnecting, block.x, block.y, zoom, onSelect, onUpdate]);
+  }, [block.locked, isConnecting, block.x, block.y, zoom, onSelect, onUpdate, onDragStart, onDragEnd, onDragMove]);
 
   // HTML5 Drag handlers for cross-component drag and drop
   const handleHtmlDragStart = (e: React.DragEvent) => {
@@ -341,9 +352,6 @@ export function BlockWrapper({
 
   return (
     <div
-      draggable={!block.locked && !isConnecting}
-      onDragStart={handleHtmlDragStart}
-      onDragEnd={handleHtmlDragEnd}
       className={`
         absolute rounded-xl overflow-hidden transition-shadow duration-200
         ${isSelected 
@@ -394,8 +402,11 @@ export function BlockWrapper({
 
       {/* Header */}
       <div
+        draggable={!block.locked && !isConnecting}
+        onDragStart={handleHtmlDragStart}
+        onDragEnd={handleHtmlDragEnd}
         className={`
-          block-header flex items-center gap-2 px-3 py-2.5 
+          block-header flex items-center gap-2 px-3 py-2.5
           border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white
           ${block.locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}
         `}
