@@ -5,7 +5,6 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -24,9 +23,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { 
+import {
   Folder,
-  FolderOpen,
   FileText,
   StickyNote,
   Kanban,
@@ -37,8 +35,6 @@ import {
   Trash2,
   Edit3,
   ExternalLink,
-  Grid3X3,
-  List,
   GripVertical,
   X
 } from 'lucide-react';
@@ -81,7 +77,7 @@ export function FolderBlock({
   onDropBlock,
   onItemDragOut 
 }: FolderBlockProps) {
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const viewMode = 'grid';
   const [editingItem, setEditingItem] = useState<FolderItem | null>(null);
   const [openedItem, setOpenedItem] = useState<FolderItem | null>(null);
   const [draggedItem, setDraggedItem] = useState<FolderItem | null>(null);
@@ -186,12 +182,6 @@ export function FolderBlock({
     }
   };
 
-  const toggleViewMode = () => {
-    const newMode = currentViewMode === 'grid' ? 'list' : 'grid';
-    setViewMode(newMode);
-    onUpdate({ items, title, viewMode: newMode });
-  };
-
   return (
     <div 
       className={`h-full flex flex-col bg-gradient-to-br from-amber-50 to-orange-50 transition-all duration-200 ${
@@ -201,27 +191,8 @@ export function FolderBlock({
       onDragLeave={handleFolderDragLeave}
       onDrop={handleFolderDrop}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-amber-200/50 bg-white/60 backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <FolderOpen className="w-5 h-5 text-amber-600" />
-          <span className="font-semibold text-sm text-gray-800">{title}</span>
-          <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700">
-            {items.length}
-          </Badge>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          onClick={toggleViewMode}
-        >
-          {currentViewMode === 'grid' ? <List className="w-4 h-4" /> : <Grid3X3 className="w-4 h-4" />}
-        </Button>
-      </div>
-
       {/* Items Area */}
-      <div className={`flex-1 overflow-y-auto p-3 ${items.length === 0 ? 'flex items-center justify-center' : ''}`}>
+      <div className={`flex-1 overflow-hidden p-3 ${items.length === 0 ? 'flex items-center justify-center' : ''}`}>
         {items.length === 0 && (
           <div className="text-center py-8 text-gray-400">
             <Folder className="w-12 h-12 mx-auto mb-3 opacity-30" />

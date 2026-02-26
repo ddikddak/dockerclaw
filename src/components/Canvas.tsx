@@ -6,7 +6,7 @@ import { useRef, useCallback, useState, useEffect } from 'react';
 import { BlockWrapper } from './BlockWrapper';
 import { DocBlock, KanbanBlock, InboxBlock, ChecklistBlock, TableBlock, TextBlock, FolderBlock } from './blocks';
 import { BlockService } from '@/services/db';
-import { ZoomIn, ZoomOut, Maximize, Move, Link2, Unlink, Users, Folder } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Move, Link2, Unlink, Users, Folder, Grid3X3, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -833,6 +833,21 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
               onDragStart={() => handleBlockDragStart(block.id)}
               onDragEnd={(screenX, screenY) => handleBlockDragEnd(block.id, screenX, screenY)}
               onDragMove={handleBlockDragMove}
+              headerActions={block.type === 'folder' ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const folderData = block.data as any;
+                    const newMode = (folderData.viewMode || 'grid') === 'grid' ? 'list' : 'grid';
+                    handleBlockDataUpdate(block.id, { viewMode: newMode });
+                  }}
+                >
+                  {((block.data as any).viewMode || 'grid') === 'grid' ? <List className="w-4 h-4" /> : <Grid3X3 className="w-4 h-4" />}
+                </Button>
+              ) : undefined}
             >
               {renderBlockContent(block)}
             </BlockWrapper>
