@@ -95,3 +95,9 @@ create trigger boards_updated_at
 create trigger blocks_updated_at
   before update on public.blocks
   for each row execute function public.handle_updated_at();
+
+-- ============================================
+-- Realtime (enables live sync between sessions)
+-- ============================================
+alter publication supabase_realtime add table public.boards;
+alter publication supabase_realtime add table public.blocks;

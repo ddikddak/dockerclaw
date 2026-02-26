@@ -35,6 +35,10 @@ function App() {
   useEffect(() => {
     if (user && user.id !== prevUserId.current) {
       prevUserId.current = user.id;
+      syncService.onRemoteChange(() => {
+        loadBoards();
+        if (currentBoardId) loadBlocks(currentBoardId);
+      });
       syncService.start(user);
       // Always reload after pull (new session has empty Dexie)
       syncService.pullFromCloud().then(() => {

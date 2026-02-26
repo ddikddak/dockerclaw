@@ -6,7 +6,7 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { db } from './db';
 import type { Board, Block } from '@/types';
-import type { User } from '@supabase/supabase-js';
+import type { User, RealtimeChannel } from '@supabase/supabase-js';
 
 // ============================================
 // Types
@@ -27,19 +27,24 @@ class SyncService {
   private user: User | null = null;
   private pulling = false;
   private pushing = false;
+  private realtimeChannel: RealtimeChannel | null = null;
+  private onChange: (() => void) | null = null;
+  // Track IDs we just pushed to ignore our own realtime echoes
+  private recentPushes = new Set<string>();
 
   // ---- Lifecycle ----
 
   start(user: User) {
     this.user = user;
     console.log('[sync] started for', user.email);
-    // Don't pull here — App.tsx calls pullFromCloud() and handles UI reload
     this.flushQueue();
     this.pushAllLocal();
+    this.subscribeRealtime();
   }
 
   stop() {
     this.user = null;
+    this.unsubscribeRealtime();
     for (const timer of this.pushTimers.values()) {
       clearTimeout(timer);
     }
@@ -48,6 +53,95 @@ class SyncService {
 
   isActive(): boolean {
     return this.user !== null && isSupabaseConfigured;
+  }
+
+  /** Register a callback for when remote changes are received */
+  onRemoteChange(callback: () => void) {
+    this.onChange = callback;
+  }
+
+  // ---- Realtime subscriptions ----
+
+  private subscribeRealtime() {
+    if (!supabase || !this.user) return;
+
+    const userId = this.user.id;
+    this.realtimeChannel = supabase
+      .channel('sync-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'boards', filter: `user_id=eq.${userId}` },
+        (payload) => this.handleRealtimeEvent('boards', payload)
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'blocks', filter: `user_id=eq.${userId}` },
+        (payload) => this.handleRealtimeEvent('blocks', payload)
+      )
+      .subscribe((status) => {
+        console.log('[sync] realtime:', status);
+      });
+  }
+
+  private unsubscribeRealtime() {
+    if (this.realtimeChannel) {
+      supabase?.removeChannel(this.realtimeChannel);
+      this.realtimeChannel = null;
+    }
+  }
+
+  private async handleRealtimeEvent(table: 'boards' | 'blocks', payload: any) {
+    const record = payload.new as Record<string, any> | undefined;
+    const oldRecord = payload.old as Record<string, any> | undefined;
+    const eventType = payload.eventType as string;
+
+    // Ignore our own pushes
+    const recordId = record?.id || oldRecord?.id;
+    if (recordId && this.recentPushes.has(`${table}:${recordId}`)) {
+      this.recentPushes.delete(`${table}:${recordId}`);
+      return;
+    }
+
+    console.log(`[sync] realtime ${eventType} on ${table}`, recordId);
+
+    if (eventType === 'DELETE' && oldRecord?.id) {
+      if (table === 'boards') {
+        await db.boards.delete(oldRecord.id);
+      } else {
+        await db.blocks.delete(oldRecord.id);
+      }
+    } else if (record) {
+      if (table === 'boards') {
+        await db.boards.put({
+          id: record.id,
+          name: record.name,
+          canvas: record.canvas,
+          settings: record.settings || {},
+          createdAt: record.created_at,
+          updatedAt: record.updated_at,
+        } as Board);
+      } else {
+        await db.blocks.put({
+          id: record.id,
+          boardId: record.board_id,
+          type: record.type,
+          x: record.x,
+          y: record.y,
+          w: record.w,
+          h: record.h,
+          z: record.z || 0,
+          locked: record.locked || false,
+          agentAccess: record.agent_access || [],
+          data: record.data,
+          createdAt: record.created_at,
+          updatedAt: record.updated_at,
+          deletedAt: record.deleted_at || undefined,
+        } as Block);
+      }
+    }
+
+    // Notify App to reload UI
+    this.onChange?.();
   }
 
   // ---- Enqueue (called after every local write) ----
@@ -80,6 +174,11 @@ class SyncService {
 
   private async pushRecord(table: 'boards' | 'blocks', recordId: string, action: 'upsert' | 'delete') {
     if (!supabase || !this.user) return;
+
+    // Mark as our own push so realtime ignores the echo
+    this.recentPushes.add(`${table}:${recordId}`);
+    // Auto-clear after 5s in case the echo never arrives
+    setTimeout(() => this.recentPushes.delete(`${table}:${recordId}`), 5000);
 
     try {
       if (action === 'delete') {
