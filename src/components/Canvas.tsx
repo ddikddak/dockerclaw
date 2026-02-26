@@ -125,14 +125,16 @@ function validateConnection(fromType: BlockType, toType: BlockType): ConnectionT
 }
 
 function getBlockTitle(block: Block): string {
+  const title = (block.data as any).title;
+  if (title) return title;
   switch (block.type) {
-    case 'doc': return (block.data as any).title || 'Untitled Document';
+    case 'doc': return 'Untitled Document';
     case 'kanban': return 'Kanban Board';
     case 'inbox': return 'Inbox';
-    case 'checklist': return (block.data as any).title || 'Checklist';
+    case 'checklist': return 'Checklist';
     case 'table': return 'Table';
     case 'text': return 'Note';
-    case 'folder': return (block.data as any).title || 'Folder';
+    case 'folder': return 'Folder';
     default: return 'Block';
   }
 }
@@ -740,11 +742,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   };
 
   const handleTitleChange = (blockId: string, newTitle: string) => {
-    const block = blocks.find(b => b.id === blockId);
-    if (!block) return;
-    if (block.type === 'doc' || block.type === 'checklist' || block.type === 'folder') {
-      handleBlockDataUpdate(blockId, { title: newTitle });
-    }
+    handleBlockDataUpdate(blockId, { title: newTitle });
   };
 
   return (
@@ -823,7 +821,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
               onDelete={() => handleBlockDelete(block.id)}
               onBringToFront={() => handleBringToFront(block.id)}
               title={getBlockTitle(block)}
-              onTitleChange={block.type === 'doc' || block.type === 'checklist' || block.type === 'folder' ? (title) => handleTitleChange(block.id, title) : undefined}
+              onTitleChange={(title) => handleTitleChange(block.id, title)}
               zoom={zoom}
               isConnecting={isConnecting}
               connectionStart={connectionStart}
