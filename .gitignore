@@ -22,3 +22,4 @@ dist/
 # Legacy folders (old codebase)
 frontend/.next/
 frontend/node_modules/
+.vercel
