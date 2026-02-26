@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/sheet';
 import { Plus, Layout, Clock, Trash2 } from 'lucide-react';
 import type { Board } from '@/types';
+import { AuthButton } from '@/components/AuthButton';
 
 interface BoardSelectorProps {
   boards: Board[];
@@ -144,13 +145,9 @@ export function BoardSelector({
         )}
       </div>
 
-      {/* Footer */}
-      <div className="p-4 border-t border-gray-200">
-        <div className="text-xs text-gray-400 text-center">
-          dockerclaw.app
-          <br />
-          Local-first boards
-        </div>
+      {/* Footer - Auth */}
+      <div className="p-3 border-t border-gray-200">
+        <AuthButton />
       </div>
     </>
   );

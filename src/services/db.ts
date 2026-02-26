@@ -4,17 +4,26 @@
 
 import Dexie, { type Table } from 'dexie';
 import type { Board, Block } from '@/types';
+import type { SyncQueueItem } from './sync';
+import { syncService } from './sync';
 
 class DockerClawDB extends Dexie {
   boards!: Table<Board>;
   blocks!: Table<Block>;
+  _syncQueue!: Table<SyncQueueItem>;
 
   constructor() {
     super('dockerclaw-db');
-    
+
     this.version(1).stores({
       boards: 'id, name, createdAt, updatedAt',
       blocks: 'id, boardId, type, x, y, z, createdAt, updatedAt, deletedAt',
+    });
+
+    this.version(2).stores({
+      boards: 'id, name, createdAt, updatedAt',
+      blocks: 'id, boardId, type, x, y, z, createdAt, updatedAt, deletedAt',
+      _syncQueue: '++id, [table+recordId], timestamp',
     });
   }
 }
@@ -33,6 +42,7 @@ export class BoardService {
       updatedAt: now,
     };
     await db.boards.add(newBoard);
+    syncService.enqueuePush('boards', newBoard.id);
     return newBoard;
   }
 
@@ -47,12 +57,18 @@ export class BoardService {
   static async update(id: string, updates: Partial<Omit<Board, 'id' | 'createdAt'>>): Promise<void> {
     const now = new Date().toISOString();
     await db.boards.update(id, { ...updates, updatedAt: now });
+    syncService.enqueuePush('boards', id);
   }
 
   static async delete(id: string): Promise<void> {
     // Delete all blocks associated with this board first
+    const blockIds = await db.blocks.where('boardId').equals(id).primaryKeys();
     await db.blocks.where('boardId').equals(id).delete();
+    for (const blockId of blockIds) {
+      syncService.enqueuePush('blocks', blockId as string, 'delete');
+    }
     await db.boards.delete(id);
+    syncService.enqueuePush('boards', id, 'delete');
   }
 }
 
@@ -68,6 +84,7 @@ export class BlockService {
       updatedAt: now,
     };
     await db.blocks.add(newBlock);
+    syncService.enqueuePush('blocks', newBlock.id);
     return newBlock;
   }
 
@@ -86,14 +103,17 @@ export class BlockService {
   static async update(id: string, updates: Partial<Omit<Block, 'id' | 'createdAt'>>): Promise<void> {
     const now = new Date().toISOString();
     await db.blocks.update(id, { ...updates, updatedAt: now });
+    syncService.enqueuePush('blocks', id);
   }
 
   static async delete(id: string, soft: boolean = true): Promise<void> {
     if (soft) {
       const now = new Date().toISOString();
       await db.blocks.update(id, { deletedAt: now, updatedAt: now });
+      syncService.enqueuePush('blocks', id);
     } else {
       await db.blocks.delete(id);
+      syncService.enqueuePush('blocks', id, 'delete');
     }
   }
 
@@ -113,12 +133,14 @@ export class BlockService {
     };
 
     await db.blocks.add(newBlock);
+    syncService.enqueuePush('blocks', newBlock.id);
     return newBlock;
   }
 
   static async updateZIndex(blockId: string, zIndex: number): Promise<void> {
     const now = new Date().toISOString();
     await db.blocks.update(blockId, { z: zIndex, updatedAt: now });
+    syncService.enqueuePush('blocks', blockId);
   }
 }
 

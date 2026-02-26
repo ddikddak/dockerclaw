@@ -2,8 +2,10 @@
 // Main App Component - Mobile Responsive
 // ============================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { BoardService, BlockService, ExportImportService } from '@/services/db';
+import { syncService } from '@/services/sync';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { BoardSelector } from '@/components/BoardSelector';
 import { Toolbar } from '@/components/Toolbar';
 import { Canvas } from '@/components/Canvas';
@@ -15,17 +17,34 @@ import { Plus, Menu } from 'lucide-react';
 import type { Board, Block, BlockType, Agent } from '@/types';
 
 function App() {
+  const { user } = useAuthContext();
   const [boards, setBoards] = useState<Board[]>([]);
   const [currentBoardId, setCurrentBoardId] = useState<string | null>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const prevUserId = useRef<string | null>(null);
 
   // Load boards on mount
   useEffect(() => {
     loadBoards();
   }, []);
+
+  // Start/stop sync on auth change
+  useEffect(() => {
+    if (user && user.id !== prevUserId.current) {
+      prevUserId.current = user.id;
+      syncService.start(user);
+      // Always reload after pull (new session has empty Dexie)
+      syncService.pullFromCloud().then(() => {
+        loadBoards();
+      });
+    } else if (!user && prevUserId.current) {
+      prevUserId.current = null;
+      syncService.stop();
+    }
+  }, [user]);
 
   // Load blocks when current board changes
   useEffect(() => {
