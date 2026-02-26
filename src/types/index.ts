@@ -2,7 +2,7 @@
 // dockerclaw.app - TypeScript Type Definitions
 // ============================================
 
-export type BlockType = 'doc' | 'kanban' | 'inbox' | 'checklist' | 'table' | 'text' | 'folder';
+export type BlockType = 'doc' | 'kanban' | 'inbox' | 'checklist' | 'table' | 'text' | 'folder' | 'image';
 
 // ============================================
 // Agent
@@ -62,7 +62,8 @@ export type BlockData =
   | ChecklistBlockData
   | TableBlockData
   | TextBlockData
-  | FolderBlockData;
+  | FolderBlockData
+  | ImageBlockData;
 
 // ============================================
 // Doc Block
@@ -166,9 +167,18 @@ export interface TextBlockData {
 }
 
 // ============================================
+// Image Block
+// ============================================
+export interface ImageBlockData {
+  base64?: string;
+  caption?: string;
+  fileName?: string;
+}
+
+// ============================================
 // Folder Block - Contains minimized blocks
 // ============================================
-export type FolderItemType = 'doc' | 'text' | 'kanban' | 'checklist' | 'table' | 'inbox';
+export type FolderItemType = 'doc' | 'text' | 'kanban' | 'checklist' | 'table' | 'inbox' | 'image';
 
 export interface FolderItem {
   id: string;

@@ -169,6 +169,29 @@ function App() {
     }
   }, [currentBoardId, blocks.length]);
 
+  const handleAddImageBlock = useCallback(async (x: number, y: number, base64: string, fileName: string) => {
+    if (!currentBoardId) return;
+    try {
+      const defaultSize = DEFAULT_BLOCK_SIZES['image'];
+      const newBlock = await BlockService.create({
+        id: crypto.randomUUID(),
+        boardId: currentBoardId,
+        type: 'image',
+        x,
+        y,
+        w: defaultSize.w,
+        h: defaultSize.h,
+        z: blocks.reduce((max, b) => Math.max(max, b.z || 0), 0) + 1,
+        agentAccess: [],
+        data: { base64, fileName, caption: '' } as any,
+      });
+      setBlocks((prev) => [...prev, newBlock]);
+    } catch (error) {
+      console.error('Failed to add image block:', error);
+      toast.error('Failed to add image block');
+    }
+  }, [currentBoardId, blocks.length]);
+
   const currentBoard = boards.find((b) => b.id === currentBoardId);
 
   const handleExport = useCallback(async () => {
@@ -296,6 +319,7 @@ function App() {
                 onBlocksChange={setBlocks}
                 agents={agents}
                 onAgentsChange={setAgents}
+                onAddImageBlock={handleAddImageBlock}
               />
             </div>
           </>

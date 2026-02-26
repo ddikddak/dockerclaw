@@ -11,6 +11,7 @@ import type {
   TableBlockData,
   TextBlockData,
   FolderBlockData,
+  ImageBlockData,
 } from '@/types';
 
 export const DEFAULT_BLOCK_SIZES: Record<BlockType, { w: number; h: number }> = {
@@ -21,6 +22,7 @@ export const DEFAULT_BLOCK_SIZES: Record<BlockType, { w: number; h: number }> = 
   table: { w: 600, h: 400 },
   text: { w: 300, h: 150 },
   folder: { w: 350, h: 450 },
+  image: { w: 400, h: 350 },
 };
 
 export function createDefaultDocData(): DocBlockData {
@@ -115,6 +117,14 @@ export function createDefaultFolderData(): FolderBlockData {
   };
 }
 
+export function createDefaultImageData(): ImageBlockData {
+  return {
+    base64: '',
+    caption: '',
+    fileName: '',
+  };
+}
+
 export function createDefaultBlockData(type: BlockType) {
   switch (type) {
     case 'doc':
@@ -131,6 +141,8 @@ export function createDefaultBlockData(type: BlockType) {
       return createDefaultTextData();
     case 'folder':
       return createDefaultFolderData();
+    case 'image':
+      return createDefaultImageData();
     default:
       return {};
   }

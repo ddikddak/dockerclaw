@@ -4,7 +4,7 @@
 
 import { useRef, useCallback, useState, useEffect } from 'react';
 import { BlockWrapper } from './BlockWrapper';
-import { DocBlock, KanbanBlock, InboxBlock, ChecklistBlock, TableBlock, TextBlock, FolderBlock } from './blocks';
+import { DocBlock, KanbanBlock, InboxBlock, ChecklistBlock, TableBlock, TextBlock, FolderBlock, ImageBlock } from './blocks';
 import { BlockService } from '@/services/db';
 import { ZoomIn, ZoomOut, Maximize, Move, Link2, Unlink, Users, Folder, Grid3X3, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ interface CanvasProps {
   onBlocksChange: (blocks: Block[]) => void;
   agents?: Agent[];
   onAgentsChange?: (agents: Agent[]) => void;
+  onAddImageBlock?: (x: number, y: number, base64: string, fileName: string) => void;
 }
 
 const DEFAULT_ZOOM = 1;
@@ -135,6 +136,7 @@ function getBlockTitle(block: Block): string {
     case 'table': return 'Table';
     case 'text': return 'Note';
     case 'folder': return 'Folder';
+    case 'image': return 'Image';
     default: return 'Block';
   }
 }
@@ -152,6 +154,7 @@ function blockToFolderItem(block: Block): FolderItem {
     case 'checklist': preview = `${data.items?.length || 0} items`; break;
     case 'table': preview = `${data.rows?.length || 0} rows`; break;
     case 'inbox': preview = `${data.items?.length || 0} items`; break;
+    case 'image': preview = data.fileName || 'Image'; break;
     default: preview = '';
   }
   
@@ -166,7 +169,7 @@ function blockToFolderItem(block: Block): FolderItem {
   };
 }
 
-export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsChange }: CanvasProps) {
+export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsChange, onAddImageBlock }: CanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const transformRef = useRef<HTMLDivElement>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
@@ -560,9 +563,28 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     onBlocksChange([...updatedBlocks, newBlock]);
   }, [board.id, blocks, maxZIndex, onBlocksChange, screenToCanvas]);
 
-  // Handle canvas drop for folder items dragged out and blocks dropped on folders
+  // Handle canvas drop for folder items dragged out, blocks dropped on folders, and image file drops
   const handleCanvasDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+
+    // Check for image file drops from filesystem
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+      if (imageFiles.length > 0 && onAddImageBlock) {
+        const canvasPos = screenToCanvas(e.clientX, e.clientY);
+        imageFiles.forEach((file, idx) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            onAddImageBlock(canvasPos.x + idx * 30, canvasPos.y + idx * 30, reader.result as string, file.name);
+          };
+          reader.readAsDataURL(file);
+        });
+        setDraggedBlockId(null);
+        updateDragOverFolderId(null);
+        return;
+      }
+    }
 
     try {
       const dragData = JSON.parse(e.dataTransfer.getData('application/json') || '{}');
@@ -582,11 +604,13 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
 
     setDraggedBlockId(null);
     updateDragOverFolderId(null);
-  }, [handleFolderItemDragOut, handleDropOnFolder, dragOverFolderId, updateDragOverFolderId]);
+  }, [handleFolderItemDragOut, handleDropOnFolder, dragOverFolderId, updateDragOverFolderId, onAddImageBlock, screenToCanvas]);
 
   const handleCanvasDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    // Use 'copy' for file drops, 'move' for internal drags
+    const hasFiles = e.dataTransfer.types.includes('Files');
+    e.dataTransfer.dropEffect = hasFiles ? 'copy' : 'move';
 
     // Hit-test folder blocks to show drop target feedback
     const canvasPos = screenToCanvas(e.clientX, e.clientY);
@@ -724,6 +748,8 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
         );
       case 'text':
         return <TextBlock data={block.data as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
+      case 'image':
+        return <ImageBlock data={block.data as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
       case 'folder':
         return (
           <FolderBlock

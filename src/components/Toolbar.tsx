@@ -35,6 +35,7 @@ import {
   Table,
   StickyNote,
   Folder,
+  ImageIcon,
   Download,
   Upload,
   Settings,
@@ -61,6 +62,7 @@ const BLOCK_TYPES: { type: BlockType; label: string; icon: React.ReactNode; desc
   { type: 'table', label: 'Table', icon: <Table className="w-4 h-4" />, description: 'Data table' },
   { type: 'text', label: 'Text Note', icon: <StickyNote className="w-4 h-4" />, description: 'Quick note' },
   { type: 'folder', label: 'Folder', icon: <Folder className="w-4 h-4" />, description: 'Store blocks' },
+  { type: 'image', label: 'Image', icon: <ImageIcon className="w-4 h-4" />, description: 'Upload image' },
 ];
 
 export function Toolbar({

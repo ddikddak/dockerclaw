@@ -31,6 +31,7 @@ import {
   CheckSquare,
   Table,
   Inbox,
+  ImageIcon,
   MoreHorizontal,
   Trash2,
   Edit3,
@@ -57,6 +58,7 @@ const ITEM_TYPE_ICONS: Record<FolderItemType, React.ReactNode> = {
   checklist: <CheckSquare className="w-5 h-5" />,
   table: <Table className="w-5 h-5" />,
   inbox: <Inbox className="w-5 h-5" />,
+  image: <ImageIcon className="w-5 h-5" />,
 };
 
 const ITEM_TYPE_COLORS: Record<FolderItemType, string> = {
@@ -66,6 +68,7 @@ const ITEM_TYPE_COLORS: Record<FolderItemType, string> = {
   checklist: 'bg-purple-100 text-purple-700 border-purple-200',
   table: 'bg-gray-100 text-gray-700 border-gray-200',
   inbox: 'bg-orange-100 text-orange-700 border-orange-200',
+  image: 'bg-pink-100 text-pink-700 border-pink-200',
 };
 
 export function FolderBlock({ 
