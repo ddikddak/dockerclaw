@@ -305,11 +305,12 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   const handlePanEnd = useCallback(() => setIsPanning(false), []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.target === canvasRef.current || e.target === transformRef.current) {
-      if (e.button === 0 || e.button === 1) {
-        setSelectedBlockId(null);
-        handlePanStart(e.clientX, e.clientY);
-      }
+    // Pan when clicking anywhere that isn't inside a block or controls
+    const target = e.target as HTMLElement;
+    if (target.closest('.block-wrapper') || target.closest('.canvas-controls')) return;
+    if (e.button === 0 || e.button === 1) {
+      setSelectedBlockId(null);
+      handlePanStart(e.clientX, e.clientY);
     }
   }, [handlePanStart]);
 
@@ -331,7 +332,8 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       });
       e.preventDefault();
     } else if (e.touches.length === 1) {
-      if (e.target === canvasRef.current || e.target === transformRef.current) {
+      const touchTarget = e.target as HTMLElement;
+      if (!touchTarget.closest('.block-wrapper')) {
         setSelectedBlockId(null);
         handlePanStart(e.touches[0].clientX, e.touches[0].clientY);
       }

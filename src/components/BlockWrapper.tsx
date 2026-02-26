@@ -353,9 +353,9 @@ export function BlockWrapper({
   return (
     <div
       className={`
-        absolute rounded-xl overflow-hidden transition-shadow duration-200
-        ${isSelected 
-          ? 'ring-2 ring-blue-500 shadow-2xl' 
+        block-wrapper absolute rounded-xl overflow-hidden transition-shadow duration-200
+        ${isSelected
+          ? 'ring-2 ring-blue-500 shadow-2xl'
           : 'shadow-lg hover:shadow-xl'
         }
         ${block.locked ? 'opacity-90' : ''}
