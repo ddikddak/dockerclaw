@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { Block, Board, InboxItem, BlockType, Connection, ConnectionType, Agent, FolderItem } from '@/types';
+import type { Block, BlockData, Board, InboxItem, BlockType, Connection, ConnectionType, Agent, FolderItem } from '@/types';
 
 interface CanvasProps {
   board: Board;
@@ -483,7 +483,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     if (draggedBlock && folderBlock && draggedBlock.id !== folderBlock.id) {
       const folderItem = blockToFolderItem(draggedBlock);
       const folderData = folderBlock.data as { items?: FolderItem[] };
-      const updatedFolderData = { ...folderBlock.data, items: [...(folderData.items || []), folderItem] };
+      const updatedFolderData = { ...folderBlock.data, items: [...(folderData.items || []), folderItem] } as BlockData;
 
       // Persist both changes
       await BlockService.update(folderId, { data: updatedFolderData });
@@ -548,7 +548,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       const updatedFolderData = {
         ...folderBlock.data,
         items: (folderData.items || []).filter((i: FolderItem) => i.id !== item.id),
-      };
+      } as BlockData;
       await BlockService.update(folderId, { data: updatedFolderData });
       updatedBlocks = blocks.map(b => b.id === folderId ? { ...b, data: updatedFolderData } : b);
     }
