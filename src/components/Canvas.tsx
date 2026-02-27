@@ -408,6 +408,10 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const dragOverFolderIdRef = useRef<string | null>(null);
 
+  // Debounce shared block position writes to avoid per-frame Supabase calls
+  const sharedUpdateTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const sharedUpdateLatest = useRef<Map<string, Partial<Block>>>(new Map());
+
   useEffect(() => {
     const max = blocks.reduce((acc, b) => Math.max(acc, b.z || 1), 1);
     setMaxZIndex(max);
@@ -497,12 +501,27 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   const isViewOnly = permission === 'viewer';
 
   const handleBlockUpdate = useCallback(async (blockId: string, updates: Partial<Block>) => {
+    // Update local state immediately for responsive UI
+    onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, ...updates } : b));
+
     if (isSharedBoard) {
-      await SharedBlockService.update(blockId, updates);
+      // Debounce Supabase writes: accumulate updates and flush every 200ms
+      const prev = sharedUpdateLatest.current.get(blockId) || {};
+      sharedUpdateLatest.current.set(blockId, { ...prev, ...updates });
+
+      if (!sharedUpdateTimers.current.has(blockId)) {
+        sharedUpdateTimers.current.set(blockId, setTimeout(async () => {
+          const merged = sharedUpdateLatest.current.get(blockId);
+          sharedUpdateLatest.current.delete(blockId);
+          sharedUpdateTimers.current.delete(blockId);
+          if (merged) {
+            await SharedBlockService.update(blockId, merged);
+          }
+        }, 200));
+      }
     } else {
       await BlockService.update(blockId, updates);
     }
-    onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, ...updates } : b));
   }, [blocks, onBlocksChange, isSharedBoard]);
 
   const handleBlockDataUpdate = useCallback(async (blockId: string, dataUpdates: any) => {
@@ -832,9 +851,14 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       const folderData = folderBlock.data as { items?: FolderItem[] };
       const updatedFolderData = { ...folderBlock.data, items: [...(folderData.items || []), folderItem] } as BlockData;
 
-      // Persist both changes
-      await BlockService.update(folderId, { data: updatedFolderData });
-      await BlockService.delete(droppedBlockId);
+      // Persist both changes using the correct service
+      if (isSharedBoard) {
+        await SharedBlockService.update(folderId, { data: updatedFolderData });
+        await SharedBlockService.delete(droppedBlockId);
+      } else {
+        await BlockService.update(folderId, { data: updatedFolderData });
+        await BlockService.delete(droppedBlockId);
+      }
 
       // Single state update: update folder data AND remove dragged block
       onBlocksChange(
@@ -846,7 +870,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
 
     setDraggedBlockId(null);
     updateDragOverFolderId(null);
-  }, [blocks, onBlocksChange, updateDragOverFolderId]);
+  }, [blocks, onBlocksChange, updateDragOverFolderId, isSharedBoard]);
 
   // Handle mouse-based drag end — drop onto folder if hovering one
   const handleBlockDragEnd = useCallback((blockId: string, screenX?: number, screenY?: number) => {
@@ -873,7 +897,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     };
     const size = defaultSizes[item.type] || { w: 300, h: 200 };
 
-    const newBlock = await BlockService.create({
+    const blockData = {
       id: crypto.randomUUID(),
       boardId: board.id,
       type: item.type as BlockType,
@@ -883,7 +907,11 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       h: size.h,
       z: maxZIndex + 1,
       data: item.data as any,
-    });
+    };
+
+    const newBlock = isSharedBoard && boardOwnerId
+      ? await SharedBlockService.create(blockData, boardOwnerId)
+      : await BlockService.create(blockData);
 
     setMaxZIndex(prev => prev + 1);
 
@@ -896,12 +924,16 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
         ...folderBlock.data,
         items: (folderData.items || []).filter((i: FolderItem) => i.id !== item.id),
       } as BlockData;
-      await BlockService.update(folderId, { data: updatedFolderData });
+      if (isSharedBoard) {
+        await SharedBlockService.update(folderId, { data: updatedFolderData });
+      } else {
+        await BlockService.update(folderId, { data: updatedFolderData });
+      }
       updatedBlocks = blocks.map(b => b.id === folderId ? { ...b, data: updatedFolderData } : b);
     }
 
     onBlocksChange([...updatedBlocks, newBlock]);
-  }, [board.id, blocks, maxZIndex, onBlocksChange, screenToCanvas]);
+  }, [board.id, blocks, maxZIndex, onBlocksChange, screenToCanvas, isSharedBoard, boardOwnerId]);
 
   // Handle canvas drop for folder items dragged out, blocks dropped on folders, and image file drops
   const handleCanvasDrop = useCallback((e: React.DragEvent) => {
