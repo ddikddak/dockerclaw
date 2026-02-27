@@ -32,6 +32,7 @@ export interface Board {
   settings?: {
     futureApiKeyId?: string;
     agents?: Agent[];
+    connections?: Connection[];
   };
 }
 

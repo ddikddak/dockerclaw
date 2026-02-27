@@ -46,6 +46,8 @@ interface CanvasProps {
   onAgentDialogOpenChange?: (open: boolean) => void;
   focusBlockId?: string | null;
   onFocusBlockHandled?: () => void;
+  connections?: Connection[];
+  onConnectionsChange?: (connections: Connection[]) => void;
 }
 
 const DEFAULT_ZOOM = 1;
@@ -300,7 +302,7 @@ const FullScreenBlockView = memo(function FullScreenBlockView({
   );
 });
 
-export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsChange, onAddImageBlock, permission = 'owner', isCollaborative = false, isSharedBoard = false, boardOwnerId, onOnlineUsersChange, isAgentDialogOpen: externalAgentDialogOpen, onAgentDialogOpenChange, focusBlockId, onFocusBlockHandled }: CanvasProps) {
+export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsChange, onAddImageBlock, permission = 'owner', isCollaborative = false, isSharedBoard = false, boardOwnerId, onOnlineUsersChange, isAgentDialogOpen: externalAgentDialogOpen, onAgentDialogOpenChange, focusBlockId, onFocusBlockHandled, connections: externalConnections, onConnectionsChange }: CanvasProps) {
   const { user } = useAuthContext();
   const isMobile = useIsMobile();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -324,7 +326,18 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionStart, setConnectionStart] = useState<string | null>(null);
-  const [connections, setConnections] = useState<Connection[]>([]);
+  const [localConnections, setLocalConnections] = useState<Connection[]>([]);
+  const connections = externalConnections ?? localConnections;
+  const setConnections = useCallback((updater: Connection[] | ((prev: Connection[]) => Connection[])) => {
+    if (typeof updater === 'function') {
+      const next = updater(connections);
+      if (onConnectionsChange) onConnectionsChange(next);
+      else setLocalConnections(next);
+    } else {
+      if (onConnectionsChange) onConnectionsChange(updater);
+      else setLocalConnections(updater);
+    }
+  }, [connections, onConnectionsChange]);
   
   const [editingConnection, setEditingConnection] = useState<Connection | null>(null);
   const [connectionLabel, setConnectionLabel] = useState('');

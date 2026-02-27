@@ -16,7 +16,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Plus, Menu } from 'lucide-react';
-import type { Board, Block, BlockType, Agent, BoardPermission, BoardCollaborator } from '@/types';
+import type { Board, Block, BlockType, Agent, Connection, BoardPermission, BoardCollaborator } from '@/types';
 import type { PresenceUser } from '@/services/collaboration';
 
 interface SharedBoard {
@@ -38,6 +38,7 @@ function App() {
   const [onlineUsers, setOnlineUsers] = useState<PresenceUser[]>([]);
   const [isAgentDialogOpen, setIsAgentDialogOpen] = useState(false);
   const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
+  const [connections, setConnections] = useState<Connection[]>([]);
   const prevUserId = useRef<string | null>(null);
 
   // Warn before leaving when a board is open
@@ -102,20 +103,39 @@ function App() {
       } else {
         setAgents([]);
       }
+      if (board?.settings?.connections) {
+        setConnections(board.settings.connections);
+      } else {
+        setConnections([]);
+      }
     } else {
       setBlocks([]);
       setAgents([]);
+      setConnections([]);
     }
   }, [currentBoardId, boards, sharedBoards]);
 
   // Save agents when they change
   useEffect(() => {
     if (currentBoardId && agents.length >= 0 && getCurrentPermission() !== 'viewer') {
+      const allBoards = [...boards, ...sharedBoards.map(sb => sb.board)];
+      const board = allBoards.find(b => b.id === currentBoardId);
       BoardService.update(currentBoardId, {
-        settings: { agents }
+        settings: { ...board?.settings, agents }
       });
     }
   }, [agents, currentBoardId, getCurrentPermission]);
+
+  // Save connections when they change
+  useEffect(() => {
+    if (currentBoardId && getCurrentPermission() !== 'viewer') {
+      const allBoards = [...boards, ...sharedBoards.map(sb => sb.board)];
+      const board = allBoards.find(b => b.id === currentBoardId);
+      BoardService.update(currentBoardId, {
+        settings: { ...board?.settings, connections }
+      });
+    }
+  }, [connections, currentBoardId, getCurrentPermission]);
 
   // Subscribe to shared board block changes via Realtime
   const sharedBlockReloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -136,7 +156,7 @@ function App() {
           }
           sharedBlockReloadTimer.current = setTimeout(() => {
             loadBlocks(currentBoardId);
-          }, 500);
+          }, 200);
         }
       )
       .subscribe();
@@ -199,7 +219,8 @@ function App() {
         const { data, error } = await supabase
           .from('blocks')
           .select('*')
-          .eq('board_id', boardId);
+          .eq('board_id', boardId)
+          .is('deleted_at', null);
         if (error) throw error;
         const mappedBlocks: Block[] = (data || []).map((r: any) => ({
           id: r.id,
@@ -385,9 +406,10 @@ function App() {
 
     try {
       const jsonData = await ExportImportService.exportBoard(currentBoardId);
-      // Add agents to export
+      // Add agents and connections to export
       const exportData = JSON.parse(jsonData);
       exportData.agents = agents;
+      exportData.connections = connections;
 
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -405,25 +427,29 @@ function App() {
       console.error('Failed to export board:', error);
       toast.error('Failed to export board');
     }
-  }, [currentBoardId, agents, currentBoard?.name]);
+  }, [currentBoardId, agents, connections, currentBoard?.name]);
 
   const handleImport = useCallback(async (file: File) => {
     try {
       const text = await file.text();
       const importedData = JSON.parse(text);
 
-      // Import agents if present
+      // Import agents and connections if present
       if (importedData.agents && Array.isArray(importedData.agents)) {
         setAgents(importedData.agents);
+      }
+      if (importedData.connections && Array.isArray(importedData.connections)) {
+        setConnections(importedData.connections);
       }
 
       const importedBoard = await ExportImportService.importBoard(text);
 
-      // Update board with agents
-      if (importedData.agents) {
-        await BoardService.update(importedBoard.id, {
-          settings: { agents: importedData.agents }
-        });
+      // Update board with agents and connections
+      const settings: Record<string, any> = {};
+      if (importedData.agents) settings.agents = importedData.agents;
+      if (importedData.connections) settings.connections = importedData.connections;
+      if (Object.keys(settings).length > 0) {
+        await BoardService.update(importedBoard.id, { settings });
       }
 
       setBoards((prev) => [importedBoard, ...prev]);
@@ -525,6 +551,8 @@ function App() {
                 onAgentDialogOpenChange={setIsAgentDialogOpen}
                 focusBlockId={focusBlockId}
                 onFocusBlockHandled={() => setFocusBlockId(null)}
+                connections={connections}
+                onConnectionsChange={setConnections}
               />
             </div>
           </>
