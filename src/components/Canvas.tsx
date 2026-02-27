@@ -412,6 +412,26 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   const sharedUpdateTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const sharedUpdateLatest = useRef<Map<string, Partial<Block>>>(new Map());
 
+  // Re-apply pending shared updates when blocks are reloaded externally (prevents snap-back during drag)
+  useEffect(() => {
+    if (!isSharedBoard || sharedUpdateLatest.current.size === 0) return;
+    let needsCorrection = false;
+    const corrected = blocks.map(b => {
+      const pending = sharedUpdateLatest.current.get(b.id);
+      if (!pending) return b;
+      const xMismatch = pending.x !== undefined && b.x !== pending.x;
+      const yMismatch = pending.y !== undefined && b.y !== pending.y;
+      if (xMismatch || yMismatch) {
+        needsCorrection = true;
+        return { ...b, ...pending };
+      }
+      return b;
+    });
+    if (needsCorrection) {
+      onBlocksChange(corrected);
+    }
+  }, [blocks, isSharedBoard, onBlocksChange]);
+
   useEffect(() => {
     const max = blocks.reduce((acc, b) => Math.max(acc, b.z || 1), 1);
     setMaxZIndex(max);
@@ -512,10 +532,15 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       if (!sharedUpdateTimers.current.has(blockId)) {
         sharedUpdateTimers.current.set(blockId, setTimeout(async () => {
           const merged = sharedUpdateLatest.current.get(blockId);
-          sharedUpdateLatest.current.delete(blockId);
           sharedUpdateTimers.current.delete(blockId);
           if (merged) {
             await SharedBlockService.update(blockId, merged);
+            // Keep pending position 500ms after write to suppress realtime echo snap-back
+            setTimeout(() => {
+              if (sharedUpdateLatest.current.get(blockId) === merged) {
+                sharedUpdateLatest.current.delete(blockId);
+              }
+            }, 500);
           }
         }, 200));
       }
