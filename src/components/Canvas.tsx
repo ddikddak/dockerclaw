@@ -4,10 +4,10 @@
 
 import { useRef, useCallback, useState, useEffect } from 'react';
 import { BlockWrapper } from './BlockWrapper';
-import { DocBlock, KanbanBlock, InboxBlock, ChecklistBlock, TableBlock, TextBlock, FolderBlock, ImageBlock } from './blocks';
+import { DocBlock, KanbanBlock, InboxBlock, ChecklistBlock, TableBlock, TextBlock, FolderBlock, ImageBlock, HeadingBlock } from './blocks';
 import { BlockService } from '@/services/db';
 import { SharedBlockService } from '@/services/boardSharing';
-import { ZoomIn, ZoomOut, Maximize, Move, Link2, Unlink, Users, Folder, Grid3X3, List } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Move, Link2, Unlink, Users, Folder, Grid3X3, List, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -27,6 +27,7 @@ import { Label } from '@/components/ui/label';
 import { CollaboratorCursors } from './CollaboratorCursors';
 import { collaborationService, type PresenceUser } from '@/services/collaboration';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 import type { Block, BlockData, Board, InboxItem, BlockType, Connection, ConnectionType, Agent, FolderItem, BoardPermission } from '@/types';
 
 interface CanvasProps {
@@ -41,6 +42,8 @@ interface CanvasProps {
   isSharedBoard?: boolean;
   boardOwnerId?: string;
   onOnlineUsersChange?: (users: PresenceUser[]) => void;
+  isAgentDialogOpen?: boolean;
+  onAgentDialogOpenChange?: (open: boolean) => void;
 }
 
 const DEFAULT_ZOOM = 1;
@@ -146,6 +149,7 @@ function getBlockTitle(block: Block): string {
     case 'text': return 'Note';
     case 'folder': return 'Folder';
     case 'image': return 'Image';
+    case 'heading': return (block.data as any).content?.slice(0, 30) || 'Heading';
     default: return 'Block';
   }
 }
@@ -164,6 +168,7 @@ function blockToFolderItem(block: Block): FolderItem {
     case 'table': preview = `${data.rows?.length || 0} rows`; break;
     case 'inbox': preview = `${data.items?.length || 0} items`; break;
     case 'image': preview = data.fileName || 'Image'; break;
+    case 'heading': preview = data.content?.slice(0, 100) || 'Empty heading'; break;
     default: preview = '';
   }
   
@@ -178,8 +183,9 @@ function blockToFolderItem(block: Block): FolderItem {
   };
 }
 
-export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsChange, onAddImageBlock, permission = 'owner', isCollaborative = false, isSharedBoard = false, boardOwnerId, onOnlineUsersChange }: CanvasProps) {
+export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsChange, onAddImageBlock, permission = 'owner', isCollaborative = false, isSharedBoard = false, boardOwnerId, onOnlineUsersChange, isAgentDialogOpen: externalAgentDialogOpen, onAgentDialogOpenChange }: CanvasProps) {
   const { user } = useAuthContext();
+  const isMobile = useIsMobile();
   const canvasRef = useRef<HTMLDivElement>(null);
   const transformRef = useRef<HTMLDivElement>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
@@ -207,10 +213,13 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   const [connectionLabel, setConnectionLabel] = useState('');
   const [connectionType, setConnectionType] = useState<ConnectionType>('links');
   
-  const [isAgentDialogOpen, setIsAgentDialogOpen] = useState(false);
+  const [localAgentDialogOpen, setLocalAgentDialogOpen] = useState(false);
+  const isAgentDialogOpen = externalAgentDialogOpen ?? localAgentDialogOpen;
+  const setIsAgentDialogOpen = onAgentDialogOpenChange ?? setLocalAgentDialogOpen;
   const [newAgentName, setNewAgentName] = useState('');
   const [newAgentColor, setNewAgentColor] = useState('#3b82f6');
-  
+  const [fullScreenBlockId, setFullScreenBlockId] = useState<string | null>(null);
+
   // Drag and drop state
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
@@ -387,6 +396,35 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     setZoom(DEFAULT_ZOOM);
     setPan({ x: 0, y: 0 });
   }, []);
+
+  const handleBlockDoubleTap = useCallback((blockId: string) => {
+    if (isMobile) {
+      setFullScreenBlockId(blockId);
+      return;
+    }
+    const block = blocks.find(b => b.id === blockId);
+    if (!block) return;
+    const canvas = canvasRef.current;
+    const el = transformRef.current;
+    if (!canvas || !el) return;
+    const rect = canvas.getBoundingClientRect();
+    const PADDING = 1.3;
+    const zoomToFit = Math.min(rect.width / (block.w * PADDING), rect.height / (block.h * PADDING));
+    const targetZoom = Math.max(MIN_ZOOM, Math.min(zoomToFit, 1.5));
+    const newPanX = rect.width / 2 - (block.x + block.w / 2) * targetZoom;
+    const newPanY = rect.height / 2 - (block.y + block.h / 2) * targetZoom;
+
+    // Animate from current to target using Web Animations API (won't interfere with pinch zoom)
+    const fromTransform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
+    const toTransform = `translate(${newPanX}px, ${newPanY}px) scale(${targetZoom})`;
+    el.animate(
+      [{ transform: fromTransform }, { transform: toTransform }],
+      { duration: 300, easing: 'ease-out', fill: 'none' }
+    );
+
+    setZoom(targetZoom);
+    setPan({ x: newPanX, y: newPanY });
+  }, [blocks, pan, zoom, isMobile]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
@@ -869,6 +907,8 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
         return <TextBlock data={block.data as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
       case 'image':
         return <ImageBlock data={block.data as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
+      case 'heading':
+        return <HeadingBlock data={block.data as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} isSelected={selectedBlockId === block.id} />;
       case 'folder':
         return (
           <FolderBlock
@@ -991,6 +1031,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
                   {((block.data as any).viewMode || 'grid') === 'grid' ? <List className="w-4 h-4" /> : <Grid3X3 className="w-4 h-4" />}
                 </Button>
               ) : undefined}
+              onDoubleTap={() => handleBlockDoubleTap(block.id)}
             >
               {renderBlockContent(block)}
             </BlockWrapper>
@@ -1015,56 +1056,84 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
         </div>
       </div>
 
-      <div className="canvas-controls absolute bottom-4 right-4 flex flex-col gap-2 bg-white/95 backdrop-blur-sm rounded-xl shadow-xl border border-gray-200 p-2 z-50">
-        <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-gray-100" onClick={handleZoomIn} disabled={zoom >= MAX_ZOOM}>
-          <ZoomIn className="w-4 h-4" />
-        </Button>
-        <div className="text-center text-xs font-semibold text-gray-700 py-1">{Math.round(zoom * 100)}%</div>
-        <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-gray-100" onClick={handleZoomOut} disabled={zoom <= MIN_ZOOM}>
-          <ZoomOut className="w-4 h-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-gray-100" onClick={handleResetZoom} title="Reset view">
-          <Maximize className="w-4 h-4" />
-        </Button>
-      </div>
+      {!isMobile && (
+        <>
+          <div className="canvas-controls absolute bottom-4 right-4 flex flex-col gap-2 bg-white/95 backdrop-blur-sm rounded-xl shadow-xl border border-gray-200 p-2 z-50">
+            <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-gray-100" onClick={handleZoomIn} disabled={zoom >= MAX_ZOOM}>
+              <ZoomIn className="w-4 h-4" />
+            </Button>
+            <div className="text-center text-xs font-semibold text-gray-700 py-1">{Math.round(zoom * 100)}%</div>
+            <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-gray-100" onClick={handleZoomOut} disabled={zoom <= MIN_ZOOM}>
+              <ZoomOut className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-gray-100" onClick={handleResetZoom} title="Reset view">
+              <Maximize className="w-4 h-4" />
+            </Button>
+          </div>
 
-      <div className="canvas-controls absolute top-4 right-4 flex flex-col gap-2 bg-white/95 backdrop-blur-sm rounded-xl shadow-xl border border-gray-200 p-2 z-50">
-        <Button variant={isConnecting ? "default" : "ghost"} size="sm" className="gap-2" onClick={() => isConnecting ? handleCancelConnection() : setIsConnecting(true)}>
-          {isConnecting ? <Unlink className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
-          {isConnecting ? 'Cancel' : 'Connect'}
-        </Button>
-        {isConnecting && <div className="text-xs text-gray-500 text-center px-2">Click two blocks</div>}
-        {connections.length > 0 && !isConnecting && <div className="text-xs text-gray-500 text-center border-t pt-2 px-2">{connections.length} connection{connections.length !== 1 ? 's' : ''}</div>}
-      </div>
+          <div className="canvas-controls absolute top-4 right-4 flex flex-col gap-2 bg-white/95 backdrop-blur-sm rounded-xl shadow-xl border border-gray-200 p-2 z-50">
+            <Button variant={isConnecting ? "default" : "ghost"} size="sm" className="gap-2" onClick={() => isConnecting ? handleCancelConnection() : setIsConnecting(true)}>
+              {isConnecting ? <Unlink className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
+              {isConnecting ? 'Cancel' : 'Connect'}
+            </Button>
+            {isConnecting && <div className="text-xs text-gray-500 text-center px-2">Click two blocks</div>}
+            {connections.length > 0 && !isConnecting && <div className="text-xs text-gray-500 text-center border-t pt-2 px-2">{connections.length} connection{connections.length !== 1 ? 's' : ''}</div>}
+          </div>
 
-      <div className="canvas-controls absolute top-4 left-4 flex flex-col gap-2 z-50">
-        <Button variant="ghost" size="sm" className="gap-2 bg-white/95 backdrop-blur-sm shadow-xl border border-gray-200" onClick={() => setIsAgentDialogOpen(true)}>
-          <Users className="w-4 h-4" />
-          Agents ({agents.length})
-        </Button>
-      </div>
+          <div className="canvas-controls absolute top-4 left-4 flex flex-col gap-2 z-50">
+            <Button variant="ghost" size="sm" className="gap-2 bg-white/95 backdrop-blur-sm shadow-xl border border-gray-200" onClick={() => setIsAgentDialogOpen(true)}>
+              <Users className="w-4 h-4" />
+              Agents ({agents.length})
+            </Button>
+          </div>
 
-      {connections.length > 0 && (
-        <div className="canvas-controls absolute top-16 left-4 flex flex-col gap-1 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 p-3 z-50">
-          <div className="text-xs font-semibold text-gray-500 mb-1">Connection Types</div>
-          {(['notify', 'explains', 'displays', 'links'] as ConnectionType[]).map((type) => {
-            const count = connections.filter(c => c.type === type).length;
-            if (count === 0) return null;
-            return (
-              <div key={type} className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getConnectionColor(type) }} />
-                <span className="text-gray-600 capitalize">{getConnectionLabel(type)}</span>
-                <span className="text-gray-400">({count})</span>
-              </div>
-            );
-          })}
-        </div>
+          {connections.length > 0 && (
+            <div className="canvas-controls absolute top-16 left-4 flex flex-col gap-1 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 p-3 z-50">
+              <div className="text-xs font-semibold text-gray-500 mb-1">Connection Types</div>
+              {(['notify', 'explains', 'displays', 'links'] as ConnectionType[]).map((type) => {
+                const count = connections.filter(c => c.type === type).length;
+                if (count === 0) return null;
+                return (
+                  <div key={type} className="flex items-center gap-2 text-xs">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getConnectionColor(type) }} />
+                    <span className="text-gray-600 capitalize">{getConnectionLabel(type)}</span>
+                    <span className="text-gray-400">({count})</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="canvas-controls absolute bottom-4 left-4 flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 px-4 py-2.5 text-xs text-gray-500 z-50">
+            <Move className="w-4 h-4" />
+            <span>Drag to pan · Pinch to zoom · Ctrl+Scroll to zoom</span>
+          </div>
+        </>
       )}
 
-      <div className="canvas-controls absolute bottom-4 left-4 flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 px-4 py-2.5 text-xs text-gray-500 z-50">
-        <Move className="w-4 h-4" />
-        <span>Drag to pan · Pinch to zoom · Ctrl+Scroll to zoom</span>
-      </div>
+      {/* Mobile full-screen block view */}
+      {fullScreenBlockId && (() => {
+        const fsBlock = blocks.find(b => b.id === fullScreenBlockId);
+        if (!fsBlock) return null;
+        const HEADER_H = 44;
+        return (
+          <div className="fixed inset-0 z-[9999] bg-white flex flex-col">
+            {/* Header */}
+            <div style={{ height: HEADER_H }} className="flex items-center justify-between px-3 border-b border-gray-200 bg-white flex-shrink-0">
+              <h2 className="font-semibold text-gray-800 truncate text-sm">{getBlockTitle(fsBlock)}</h2>
+              <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => setFullScreenBlockId(null)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            {/* Content */}
+            <div className="flex-1 min-h-0 overflow-auto">
+              <div className="h-full">
+                {renderBlockContent(fsBlock)}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <Dialog open={!!editingConnection} onOpenChange={() => setEditingConnection(null)}>
         <DialogContent className="max-w-md" onPointerDownOutside={() => setEditingConnection(null)}>

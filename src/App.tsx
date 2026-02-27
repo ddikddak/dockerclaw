@@ -36,6 +36,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<PresenceUser[]>([]);
+  const [isAgentDialogOpen, setIsAgentDialogOpen] = useState(false);
   const prevUserId = useRef<string | null>(null);
 
   // Determine current board permission
@@ -490,6 +491,8 @@ function App() {
               onRenameBoard={handleRenameBoard}
               onDeleteBoard={() => handleDeleteBoard(currentBoard.id)}
               onlineUsers={onlineUsers}
+              agents={agents}
+              onOpenAgentDialog={() => setIsAgentDialogOpen(true)}
             />
             <div className="flex-1 min-h-0">
               <Canvas
@@ -504,6 +507,8 @@ function App() {
                 isSharedBoard={isSharedBoard}
                 boardOwnerId={boardOwnerId}
                 onOnlineUsersChange={setOnlineUsers}
+                isAgentDialogOpen={isAgentDialogOpen}
+                onAgentDialogOpenChange={setIsAgentDialogOpen}
               />
             </div>
           </>

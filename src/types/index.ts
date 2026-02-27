@@ -2,7 +2,7 @@
 // dockerclaw.app - TypeScript Type Definitions
 // ============================================
 
-export type BlockType = 'doc' | 'kanban' | 'inbox' | 'checklist' | 'table' | 'text' | 'folder' | 'image';
+export type BlockType = 'doc' | 'kanban' | 'inbox' | 'checklist' | 'table' | 'text' | 'folder' | 'image' | 'heading';
 
 // ============================================
 // Agent
@@ -63,7 +63,8 @@ export type BlockData =
   | TableBlockData
   | TextBlockData
   | FolderBlockData
-  | ImageBlockData;
+  | ImageBlockData
+  | HeadingBlockData;
 
 // ============================================
 // Doc Block
@@ -167,6 +168,23 @@ export interface TextBlockData {
 }
 
 // ============================================
+// Heading Block
+// ============================================
+export type HeadingLevel = 'h1' | 'h2' | 'h3' | 'body';
+
+export interface HeadingBlockData {
+  content: string;
+  level: HeadingLevel;
+  fontSize?: number;
+  fontFamily?: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  color: string;
+  align: 'left' | 'center' | 'right';
+}
+
+// ============================================
 // Image Block
 // ============================================
 export interface ImageBlockData {
@@ -178,7 +196,7 @@ export interface ImageBlockData {
 // ============================================
 // Folder Block - Contains minimized blocks
 // ============================================
-export type FolderItemType = 'doc' | 'text' | 'kanban' | 'checklist' | 'table' | 'inbox' | 'image';
+export type FolderItemType = 'doc' | 'text' | 'kanban' | 'checklist' | 'table' | 'inbox' | 'image' | 'heading';
 
 export interface FolderItem {
   id: string;

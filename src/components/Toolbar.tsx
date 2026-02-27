@@ -42,8 +42,10 @@ import {
   Trash2,
   Edit3,
   MoreHorizontal,
+  Users,
+  Heading,
 } from 'lucide-react';
-import type { BlockType, BoardPermission } from '@/types';
+import type { BlockType, BoardPermission, Agent } from '@/types';
 import type { PresenceUser } from '@/services/collaboration';
 import { ShareDialog } from '@/components/ShareDialog';
 
@@ -57,6 +59,8 @@ interface ToolbarProps {
   onRenameBoard: (name: string) => void;
   onDeleteBoard: () => void;
   onlineUsers?: PresenceUser[];
+  agents?: Agent[];
+  onOpenAgentDialog?: () => void;
 }
 
 const BLOCK_TYPES: { type: BlockType; label: string; icon: React.ReactNode; description: string }[] = [
@@ -66,6 +70,7 @@ const BLOCK_TYPES: { type: BlockType; label: string; icon: React.ReactNode; desc
   { type: 'checklist', label: 'Checklist', icon: <CheckSquare className="w-4 h-4" />, description: 'Todo items' },
   { type: 'table', label: 'Table', icon: <Table className="w-4 h-4" />, description: 'Data table' },
   { type: 'text', label: 'Text Note', icon: <StickyNote className="w-4 h-4" />, description: 'Quick note' },
+  { type: 'heading', label: 'Heading', icon: <Heading className="w-4 h-4" />, description: 'Label or title' },
   { type: 'folder', label: 'Folder', icon: <Folder className="w-4 h-4" />, description: 'Store blocks' },
   { type: 'image', label: 'Image', icon: <ImageIcon className="w-4 h-4" />, description: 'Upload image' },
 ];
@@ -80,6 +85,8 @@ export function Toolbar({
   onRenameBoard,
   onDeleteBoard,
   onlineUsers = [],
+  agents = [],
+  onOpenAgentDialog,
 }: ToolbarProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(boardName);
@@ -261,6 +268,19 @@ export function Toolbar({
           onChange={handleFileChange}
           className="hidden"
         />
+
+        {/* Mobile: Agents button */}
+        {onOpenAgentDialog && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 md:hidden"
+            onClick={onOpenAgentDialog}
+            title={`Agents (${agents.length})`}
+          >
+            <Users className="w-5 h-5" />
+          </Button>
+        )}
 
         {/* Mobile: More actions menu */}
         <div className="sm:hidden">

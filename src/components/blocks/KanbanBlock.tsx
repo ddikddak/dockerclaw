@@ -2,7 +2,7 @@
 // Kanban Block - Fully customizable with custom stages and properties
 // ============================================
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -60,6 +60,19 @@ export function KanbanBlock({
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [newColumnName, setNewColumnName] = useState('');
+
+  // Touch drag state for mobile
+  // direction: null = undecided, 'drag' = horizontal card drag, 'scroll' = vertical column scroll
+  const touchDragRef = useRef<{
+    card: KanbanCard;
+    startX: number;
+    startY: number;
+    direction: 'drag' | 'scroll' | null;
+    active: boolean;
+    ghostEl: HTMLDivElement | null;
+    preventClick: boolean;
+  } | null>(null);
+  const kanbanRef = useRef<HTMLDivElement>(null);
 
   // Ensure columns exist
   const columns = data.columns?.length > 0 ? data.columns : [
@@ -218,6 +231,129 @@ export function KanbanBlock({
     setDragOverColumn(null);
   };
 
+  // Touch drag handlers for mobile
+  const handleCardTouchStart = useCallback((e: React.TouchEvent, card: KanbanCard) => {
+    if (e.touches.length !== 1) return;
+    const t = e.target as HTMLElement;
+    if (t.closest('button, input, textarea, select, a')) return;
+    const touch = e.touches[0];
+    touchDragRef.current = {
+      card,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      direction: null,
+      active: false,
+      ghostEl: null,
+      preventClick: false,
+    };
+  }, []);
+
+  const handleCardTouchMove = useCallback((e: React.TouchEvent) => {
+    const state = touchDragRef.current;
+    if (!state || e.touches.length !== 1) return;
+
+    // If we already decided this is a scroll, bail out and let native scroll work
+    if (state.direction === 'scroll') return;
+
+    const touch = e.touches[0];
+    const dx = touch.clientX - state.startX;
+    const dy = touch.clientY - state.startY;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    // Decide direction after 8px of movement
+    if (!state.direction && (absDx + absDy) > 8) {
+      if (absDx > absDy) {
+        // Horizontal = card drag
+        state.direction = 'drag';
+      } else {
+        // Vertical = column scroll — release control to browser
+        state.direction = 'scroll';
+        touchDragRef.current = null;
+        return;
+      }
+    }
+
+    // Once direction is 'drag', prevent scroll and handle drag
+    if (state.direction === 'drag') {
+      e.preventDefault();
+
+      if (!state.active) {
+        state.active = true;
+        state.preventClick = true;
+        setDraggedCard(state.card);
+
+        const ghost = document.createElement('div');
+        ghost.textContent = state.card.title;
+        ghost.style.cssText = `
+          position: fixed; z-index: 99999; pointer-events: none;
+          background: white; border: 2px solid #3b82f6; border-radius: 8px;
+          padding: 8px 12px; font-size: 13px; color: #1e293b;
+          box-shadow: 0 8px 25px rgba(0,0,0,0.15); max-width: 200px;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+          transform: rotate(2deg);
+        `;
+        document.body.appendChild(ghost);
+        state.ghostEl = ghost;
+      }
+
+      if (state.ghostEl) {
+        state.ghostEl.style.left = `${touch.clientX - 50}px`;
+        state.ghostEl.style.top = `${touch.clientY - 20}px`;
+      }
+
+      // Hide ghost momentarily to find element underneath
+      if (state.ghostEl) state.ghostEl.style.display = 'none';
+      const elemUnder = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (state.ghostEl) state.ghostEl.style.display = '';
+      const columnEl = elemUnder?.closest('[data-column-id]') as HTMLElement | null;
+      const colId = columnEl?.dataset.columnId || null;
+      setDragOverColumn(colId);
+    }
+  }, []);
+
+  const handleCardTouchEnd = useCallback(() => {
+    const state = touchDragRef.current;
+    if (!state) return;
+
+    // Clean up ghost
+    if (state.ghostEl) {
+      state.ghostEl.remove();
+      state.ghostEl = null;
+    }
+
+    if (state.active && dragOverColumn && dragOverColumn !== state.card.columnId) {
+      // Move card to target column
+      const updatedCards = (data.cards || []).map((card) =>
+        card.id === state.card.id
+          ? { ...card, columnId: dragOverColumn, updatedAt: new Date().toISOString() }
+          : card
+      );
+      onUpdate({
+        cards: updatedCards,
+        columns,
+        properties,
+      });
+    }
+
+    // Schedule click prevention reset
+    if (state.preventClick) {
+      setTimeout(() => {
+        if (touchDragRef.current) touchDragRef.current.preventClick = false;
+      }, 50);
+    }
+
+    setDraggedCard(null);
+    setDragOverColumn(null);
+    touchDragRef.current = null;
+  }, [dragOverColumn, data.cards, columns, properties, onUpdate]);
+
+  const handleCardClick = useCallback((card: KanbanCard) => {
+    // Prevent card edit if we just finished a touch drag
+    if (touchDragRef.current?.preventClick) return;
+    setEditingCard(card);
+  }, []);
+
   return (
     <div className="h-full flex flex-col">
       {/* Header with config button */}
@@ -238,7 +374,7 @@ export function KanbanBlock({
               cards={(data.cards || []).filter((c) => c.columnId === column.id)}
               properties={properties}
               onAddCard={() => setIsAddingCard(column.id)}
-              onEditCard={setEditingCard}
+              onEditCard={handleCardClick}
               onDeleteColumn={() => handleDeleteColumn(column.id)}
               onReorderColumn={(dir) => handleReorderColumn(column.id, dir)}
               isFirst={index === 0}
@@ -250,6 +386,9 @@ export function KanbanBlock({
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               onDragEnd={handleCardDragEnd}
+              onCardTouchStart={handleCardTouchStart}
+              onCardTouchMove={handleCardTouchMove}
+              onCardTouchEnd={handleCardTouchEnd}
             />
           ))}
         </div>
@@ -389,6 +528,9 @@ interface KanbanColumnComponentProps {
   onDragLeave: () => void;
   onDrop: (e: React.DragEvent, columnId: string) => void;
   onDragEnd: () => void;
+  onCardTouchStart: (e: React.TouchEvent, card: KanbanCard) => void;
+  onCardTouchMove: (e: React.TouchEvent) => void;
+  onCardTouchEnd: () => void;
 }
 
 function KanbanColumnComponent({
@@ -403,11 +545,15 @@ function KanbanColumnComponent({
   onDragLeave,
   onDrop,
   onDragEnd,
+  onCardTouchStart,
+  onCardTouchMove,
+  onCardTouchEnd,
 }: KanbanColumnComponentProps) {
   const isDragOver = dragOverColumn === column.id;
 
   return (
-    <div 
+    <div
+      data-column-id={column.id}
       className={`
         flex flex-col w-72 bg-gray-50/80 rounded-xl flex-shrink-0
         transition-all duration-200
@@ -439,10 +585,14 @@ function KanbanColumnComponent({
             onDragStart={() => onDragStart(card)}
             onDragEnd={onDragEnd}
             onClick={() => onEditCard(card)}
+            onTouchStart={(e) => onCardTouchStart(e, card)}
+            onTouchMove={onCardTouchMove}
+            onTouchEnd={onCardTouchEnd}
+            style={{ touchAction: 'pan-y' }}
             className={`
-              group bg-white p-3 rounded-lg shadow-sm border border-gray-200 
+              group bg-white p-3 rounded-lg shadow-sm border border-gray-200
               cursor-grab active:cursor-grabbing
-              hover:shadow-md hover:border-blue-300 
+              hover:shadow-md hover:border-blue-300
               transition-all duration-150
               ${draggedCard?.id === card.id ? 'opacity-50' : ''}
             `}

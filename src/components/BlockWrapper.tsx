@@ -3,19 +3,21 @@
 // Blocks scale with zoom - everything is proportional
 // ============================================
 
-import { useState, useCallback, useRef } from 'react';
-import { 
-  GripVertical, 
-  Copy, 
-  Trash2, 
-  Lock, 
+import { useState, useCallback, useRef, useEffect } from 'react';
+import React from 'react';
+import {
+  GripVertical,
+  Copy,
+  Trash2,
+  Lock,
   Unlock,
   MoreVertical,
   Settings2,
   Link2,
   Maximize2,
   Bot,
-  Check
+  Check,
+  Pencil,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -64,6 +66,7 @@ interface BlockWrapperProps {
   onDragStart?: () => void;
   onDragEnd?: (screenX?: number, screenY?: number) => void;
   onDragMove?: (screenX: number, screenY: number) => void;
+  onDoubleTap?: () => void;
 }
 
 export function BlockWrapper({
@@ -87,15 +90,26 @@ export function BlockWrapper({
   onDragStart,
   onDragEnd,
   onDragMove,
+  onDoubleTap,
 }: BlockWrapperProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState(title || '');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isEditingStyle, setIsEditingStyle] = useState(false);
   
   const dragRef = useRef<{ startX: number; startY: number; blockX: number; blockY: number } | null>(null);
   const resizeRef = useRef<{ startX: number; startY: number; blockW: number; blockH: number } | null>(null);
+  const lastTapRef = useRef<number>(0);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  const isChromeless = block.type === 'heading';
+
+  // Reset editing style when block is deselected
+  useEffect(() => {
+    if (!isSelected) setIsEditingStyle(false);
+  }, [isSelected]);
 
   const isConnectionTarget = isConnecting && connectionStart && connectionStart !== block.id;
   const isConnectionSource = isConnecting && connectionStart === block.id;
@@ -122,6 +136,41 @@ export function BlockWrapper({
     },
     [handleTitleSubmit, title]
   );
+
+  const handleBlockTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      touchStartPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    } else {
+      touchStartPosRef.current = null;
+    }
+    if (isChromeless && !isEditingStyle) {
+      onSelect();
+      if (!block.locked) startDragRef.current?.(e);
+    } else if ((e.target as HTMLElement).closest('.block-header')) {
+      startDragRef.current?.(e);
+    }
+  }, [isChromeless, isEditingStyle, block.locked, onSelect]);
+
+  const handleBlockTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (!touchStartPosRef.current || !onDoubleTap) return;
+    const touch = e.changedTouches[0];
+    const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+    touchStartPosRef.current = null;
+    if (dx > 10 || dy > 10) return; // Was a drag, not a tap
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      e.preventDefault();
+      e.stopPropagation();
+      onDoubleTap();
+      lastTapRef.current = 0;
+    } else {
+      lastTapRef.current = now;
+    }
+  }, [onDoubleTap]);
+
+  // Ref to hold startDrag so handleBlockTouchStart can call it without circular dependency
+  const startDragRef = useRef<((e: React.MouseEvent | React.TouchEvent) => void) | null>(null);
 
   const startDrag = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (block.locked || isConnecting) return;
@@ -182,6 +231,8 @@ export function BlockWrapper({
     e.stopPropagation();
   }, [block.locked, isConnecting, block.x, block.y, zoom, onSelect, onUpdate, onDragStart, onDragEnd, onDragMove]);
 
+  startDragRef.current = startDrag;
+
   // HTML5 Drag handlers for cross-component drag and drop
   const handleHtmlDragStart = (e: React.DragEvent) => {
     if (block.locked || isConnecting) {
@@ -226,9 +277,10 @@ export function BlockWrapper({
       const dx = (moveClientX - resizeRef.current.startX) / zoom;
       const dy = (moveClientY - resizeRef.current.startY) / zoom;
       
+      const minH = isChromeless ? 24 : 150;
       onUpdate({
         w: Math.max(200, resizeRef.current.blockW + dx),
-        h: Math.max(150, resizeRef.current.blockH + dy),
+        h: Math.max(minH, resizeRef.current.blockH + dy),
       });
     };
     
@@ -353,38 +405,41 @@ export function BlockWrapper({
   return (
     <div
       className={`
-        block-wrapper absolute rounded-xl overflow-hidden transition-shadow duration-200
-        ${isSelected
-          ? 'ring-2 ring-blue-500 shadow-2xl'
-          : 'shadow-lg hover:shadow-xl'
+        block-wrapper absolute transition-shadow duration-200
+        ${isChromeless
+          ? `${isSelected ? 'ring-2 ring-blue-500/50 rounded-lg' : ''}`
+          : `rounded-xl overflow-hidden ${isSelected ? 'ring-2 ring-blue-500 shadow-2xl' : 'shadow-lg hover:shadow-xl'}`
         }
         ${block.locked ? 'opacity-90' : ''}
         ${isConnectionTarget ? 'ring-2 ring-green-400 ring-dashed cursor-pointer' : ''}
         ${isConnectionSource ? 'ring-2 ring-blue-400' : ''}
         ${isConnecting && !isConnectionTarget && !isConnectionSource ? 'opacity-50' : ''}
-        ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}
+        ${isDragging ? 'cursor-grabbing' : isChromeless && !isEditingStyle ? 'cursor-grab' : !isChromeless ? 'cursor-grab' : ''}
       `}
       style={{
-        // Position and size are in world coordinates - they scale with zoom
         left: block.x,
         top: block.y,
         width: block.w,
         height: block.h,
         zIndex: isSelected ? (block.z || 1) + 1000 : (block.z || 1),
-        background: 'white',
-        border: isSelected ? 'none' : '1px solid #e5e7eb',
+        background: isChromeless ? 'transparent' : 'white',
+        border: isChromeless ? 'none' : (isSelected ? 'none' : '1px solid #e5e7eb'),
         willChange: isDragging || isResizing ? 'transform' : 'auto',
       }}
       onMouseDown={(e) => {
-        if ((e.target as HTMLElement).closest('.block-header')) {
+        if (isChromeless && !isEditingStyle) {
+          onSelect();
+          if (!block.locked) startDrag(e);
+        } else if ((e.target as HTMLElement).closest('.block-header')) {
           startDrag(e);
         }
       }}
-      onTouchStart={(e) => {
-        if ((e.target as HTMLElement).closest('.block-header')) {
-          startDrag(e);
-        }
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onDoubleTap?.();
       }}
+      onTouchStart={handleBlockTouchStart}
+      onTouchEnd={handleBlockTouchEnd}
     >
       {/* Connection indicator */}
       {isConnectionSource && (
@@ -400,7 +455,66 @@ export function BlockWrapper({
         />
       )}
 
-      {/* Header */}
+      {/* Header - hidden for chromeless blocks */}
+      {isChromeless ? (
+        /* Minimal floating menu for chromeless blocks - only on selection/hover */
+        isSelected && !isEditingStyle && (
+          <div className="absolute -top-1 -right-1 z-20 flex items-center gap-0.5">
+            <div className="hidden sm:block">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-6 w-6 rounded-md bg-white/90 backdrop-blur-sm shadow-sm border-gray-200">
+                    <MoreVertical className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => setIsEditingStyle(true)}>
+                    <Pencil className="w-4 h-4 mr-2" />
+                    Edit Style
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onBringToFront}>
+                    <Settings2 className="w-4 h-4 mr-2" />
+                    Bring to Front
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onUpdate({ locked: !block.locked })}>
+                    {block.locked ? <><Unlock className="w-4 h-4 mr-2" />Unlock</> : <><Lock className="w-4 h-4 mr-2" />Lock</>}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onDuplicate}>
+                    <Copy className="w-4 h-4 mr-2" />
+                    Duplicate
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onDelete} className="text-red-600 focus:text-red-600">
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="sm:hidden">
+              <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-6 w-6 rounded-md bg-white/90 backdrop-blur-sm shadow-sm border-gray-200">
+                    <MoreVertical className="w-3 h-3" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="h-auto">
+                  <SheetHeader>
+                    <SheetTitle>Block Actions</SheetTitle>
+                  </SheetHeader>
+                  <div className="py-4 space-y-2">
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => { setIsEditingStyle(true); setIsMenuOpen(false); }}>
+                      <Pencil className="w-4 h-4 mr-2" />Edit Style
+                    </Button>
+                    {MobileMenuContent}
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
+          </div>
+        )
+      ) : (
       <div
         draggable={!block.locked && !isConnecting}
         onDragStart={handleHtmlDragStart}
@@ -609,10 +723,16 @@ export function BlockWrapper({
           </Sheet>
         </div>
       </div>
+      )}
 
       {/* Content */}
-      <div className="h-[calc(100%-48px)] overflow-auto">
-        {children}
+      <div className={isChromeless ? 'h-full overflow-visible' : 'h-[calc(100%-48px)] overflow-auto'}>
+        {isChromeless && React.isValidElement(children)
+          ? React.cloneElement(children as React.ReactElement<any>, {
+              isEditingStyle,
+              onExitEditStyle: () => setIsEditingStyle(false),
+            })
+          : children}
       </div>
 
       {/* Resize handle */}

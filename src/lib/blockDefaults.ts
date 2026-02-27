@@ -12,6 +12,7 @@ import type {
   TextBlockData,
   FolderBlockData,
   ImageBlockData,
+  HeadingBlockData,
 } from '@/types';
 
 export const DEFAULT_BLOCK_SIZES: Record<BlockType, { w: number; h: number }> = {
@@ -23,6 +24,7 @@ export const DEFAULT_BLOCK_SIZES: Record<BlockType, { w: number; h: number }> = 
   text: { w: 300, h: 150 },
   folder: { w: 350, h: 450 },
   image: { w: 400, h: 350 },
+  heading: { w: 400, h: 80 },
 };
 
 export function createDefaultDocData(): DocBlockData {
@@ -117,6 +119,18 @@ export function createDefaultFolderData(): FolderBlockData {
   };
 }
 
+export function createDefaultHeadingData(): HeadingBlockData {
+  return {
+    content: '',
+    level: 'h1',
+    bold: false,
+    italic: false,
+    underline: false,
+    color: '#1f2937',
+    align: 'left',
+  };
+}
+
 export function createDefaultImageData(): ImageBlockData {
   return {
     base64: '',
@@ -143,6 +157,8 @@ export function createDefaultBlockData(type: BlockType) {
       return createDefaultFolderData();
     case 'image':
       return createDefaultImageData();
+    case 'heading':
+      return createDefaultHeadingData();
     default:
       return {};
   }
