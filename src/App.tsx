@@ -191,8 +191,8 @@ function App() {
       const allBoards = await BoardService.getAll();
       setBoards(allBoards);
 
-      // Select first board if none selected
-      if (allBoards.length > 0 && !currentBoardId) {
+      // Select first board if none selected (use ref to avoid stale closure)
+      if (allBoards.length > 0 && !currentBoardIdRef.current) {
         setCurrentBoardId(allBoards[0].id);
       }
     } catch (error) {
