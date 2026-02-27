@@ -51,7 +51,7 @@ export class BoardService {
   }
 
   static async getAll(): Promise<Board[]> {
-    return await db.boards.orderBy('updatedAt').reverse().toArray();
+    return await db.boards.orderBy('createdAt').reverse().toArray();
   }
 
   static async update(id: string, updates: Partial<Omit<Board, 'id' | 'createdAt'>>): Promise<void> {

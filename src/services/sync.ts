@@ -28,7 +28,7 @@ class SyncService {
   private pulling = false;
   private pushing = false;
   private realtimeChannel: RealtimeChannel | null = null;
-  private onChange: (() => void) | null = null;
+  private onChange: ((table: 'boards' | 'blocks') => void) | null = null;
   // Track IDs we just pushed to ignore our own realtime echoes
   private recentPushes = new Set<string>();
 
@@ -56,7 +56,7 @@ class SyncService {
   }
 
   /** Register a callback for when remote changes are received */
-  onRemoteChange(callback: () => void) {
+  onRemoteChange(callback: (table: 'boards' | 'blocks') => void) {
     this.onChange = callback;
   }
 
@@ -140,8 +140,8 @@ class SyncService {
       }
     }
 
-    // Notify App to reload UI
-    this.onChange?.();
+    // Notify App to reload UI, passing which table changed
+    this.onChange?.(table);
   }
 
   // ---- Enqueue (called after every local write) ----

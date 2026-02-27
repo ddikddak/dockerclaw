@@ -78,15 +78,19 @@ function App() {
   useEffect(() => {
     if (user && user.id !== prevUserId.current) {
       prevUserId.current = user.id;
-      syncService.onRemoteChange(async () => {
-        await loadBoards();
-        const boardId = currentBoardIdRef.current;
-        if (boardId) {
-          loadBlocks(boardId);
-          // Reload board settings (agents, connections)
-          const board = await BoardService.getById(boardId);
-          if (board?.settings?.agents) setAgents(board.settings.agents);
-          if (board?.settings?.connections) setConnections(board.settings.connections);
+      syncService.onRemoteChange(async (table) => {
+        if (table === 'boards') {
+          await loadBoards();
+          // Reload board settings (agents, connections) for current board
+          const boardId = currentBoardIdRef.current;
+          if (boardId) {
+            const board = await BoardService.getById(boardId);
+            if (board?.settings?.agents) setAgents(board.settings.agents);
+            if (board?.settings?.connections) setConnections(board.settings.connections);
+          }
+        } else {
+          const boardId = currentBoardIdRef.current;
+          if (boardId) loadBlocks(boardId);
         }
       });
       syncService.start(user);
