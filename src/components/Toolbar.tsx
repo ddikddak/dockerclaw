@@ -1,9 +1,9 @@
 // ============================================
-// Toolbar Component - Add blocks and board actions
+// Toolbar Component - Single unified topbar
 // Mobile responsive with compact layout
 // ============================================
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -36,8 +36,6 @@ import {
   StickyNote,
   Folder,
   ImageIcon,
-  Download,
-  Upload,
   Settings,
   Trash2,
   Edit3,
@@ -45,6 +43,7 @@ import {
   Users,
   Heading,
   Crosshair,
+  Menu,
 } from 'lucide-react';
 import type { Block, BlockType, BoardPermission, Agent } from '@/types';
 import type { PresenceUser } from '@/services/collaboration';
@@ -55,8 +54,6 @@ interface ToolbarProps {
   boardId: string;
   permission: BoardPermission;
   onAddBlock: (type: BlockType) => void;
-  onExport: () => void;
-  onImport: (file: File) => void;
   onRenameBoard: (name: string) => void;
   onDeleteBoard: () => void;
   onlineUsers?: PresenceUser[];
@@ -64,6 +61,7 @@ interface ToolbarProps {
   onOpenAgentDialog?: () => void;
   blocks?: Block[];
   onFocusBlock?: (blockId: string) => void;
+  onOpenSidebar?: () => void;
 }
 
 const BLOCK_TYPES: { type: BlockType; label: string; icon: React.ReactNode; description: string }[] = [
@@ -83,8 +81,6 @@ export function Toolbar({
   boardId,
   permission,
   onAddBlock,
-  onExport,
-  onImport,
   onRenameBoard,
   onDeleteBoard,
   onlineUsers = [],
@@ -92,26 +88,18 @@ export function Toolbar({
   onOpenAgentDialog,
   blocks = [],
   onFocusBlock,
+  onOpenSidebar,
 }: ToolbarProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(boardName);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAddBlockOpen, setIsAddBlockOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleNameSubmit = () => {
     if (editName.trim()) {
       onRenameBoard(editName.trim());
     }
     setIsEditingName(false);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onImport(file);
-      e.target.value = ''; // Reset input
-    }
   };
 
   const handleAddBlock = (type: BlockType) => {
@@ -208,8 +196,20 @@ export function Toolbar({
 
   return (
     <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-3 md:px-4 flex-shrink-0">
-      {/* Left: Board Name */}
+      {/* Left: Hamburger (mobile) + Board Name */}
       <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+        {/* Mobile hamburger menu */}
+        {onOpenSidebar && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 md:hidden flex-shrink-0"
+            onClick={onOpenSidebar}
+          >
+            <Menu className="w-5 h-5" />
+          </Button>
+        )}
+
         {isEditingName ? (
           <Input
             value={editName}
@@ -237,7 +237,7 @@ export function Toolbar({
       </div>
 
       {/* Center: Add Block */}
-      <div className="flex-shrink-0 mx-3 md:mx-6">
+      <div className="flex-shrink-0 mx-2 md:mx-6">
         {/* Mobile: Sheet */}
         <div className="md:hidden">{MobileAddBlockSheet}</div>
         {/* Desktop: Dropdown */}
@@ -301,35 +301,6 @@ export function Toolbar({
           />
         </div>
 
-        {/* Export - hidden on small mobile */}
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={onExport} 
-          className="gap-1 md:gap-2 hidden sm:flex"
-        >
-          <Download className="w-4 h-4" />
-          <span className="hidden md:inline">Export</span>
-        </Button>
-
-        {/* Import - hidden on small mobile */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => fileInputRef.current?.click()}
-          className="gap-1 md:gap-2 hidden sm:flex"
-        >
-          <Upload className="w-4 h-4" />
-          <span className="hidden md:inline">Import</span>
-        </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json"
-          onChange={handleFileChange}
-          className="hidden"
-        />
-
         {/* Mobile: Agents button */}
         {onOpenAgentDialog && (
           <Button
@@ -356,21 +327,14 @@ export function Toolbar({
                 <SheetTitle>Actions</SheetTitle>
               </SheetHeader>
               <div className="py-4 space-y-2">
-                <Button variant="outline" className="w-full justify-start gap-2" onClick={onExport}>
-                  <Download className="w-4 h-4" />
-                  Export Board
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start gap-2" 
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="w-4 h-4" />
-                  Import Board
-                </Button>
-                <Button 
-                  variant="destructive" 
-                  className="w-full justify-start gap-2" 
+                <ShareDialog
+                  boardId={boardId}
+                  isOwner={permission === 'owner'}
+                  onlineUsers={onlineUsers}
+                />
+                <Button
+                  variant="destructive"
+                  className="w-full justify-start gap-2"
                   onClick={() => {
                     if (confirm('Are you sure you want to delete this board?')) {
                       onDeleteBoard();

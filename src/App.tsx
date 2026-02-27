@@ -3,7 +3,7 @@
 // ============================================
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { BoardService, BlockService, ExportImportService } from '@/services/db';
+import { BoardService, BlockService } from '@/services/db';
 import { syncService } from '@/services/sync';
 import { BoardSharingService, SharedBlockService } from '@/services/boardSharing';
 import { supabase } from '@/lib/supabase';
@@ -14,8 +14,7 @@ import { Canvas } from '@/components/Canvas';
 import { createDefaultBlockData, DEFAULT_BLOCK_SIZES } from '@/lib/blockDefaults';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Plus, Menu } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { Board, Block, BlockType, Agent, Connection, BoardPermission, BoardCollaborator } from '@/types';
 import type { PresenceUser } from '@/services/collaboration';
 
@@ -415,68 +414,6 @@ function App() {
   const isSharedBoard = !!currentSharedBoard;
   const boardOwnerId = currentSharedBoard?.ownerId;
 
-  const handleExport = useCallback(async () => {
-    if (!currentBoardId) {
-      toast.error('Please select a board first');
-      return;
-    }
-
-    try {
-      const jsonData = await ExportImportService.exportBoard(currentBoardId);
-      // Add agents and connections to export
-      const exportData = JSON.parse(jsonData);
-      exportData.agents = agents;
-      exportData.connections = connections;
-
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `board-${currentBoard?.name || 'export'}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      toast.success('Board exported');
-    } catch (error) {
-      console.error('Failed to export board:', error);
-      toast.error('Failed to export board');
-    }
-  }, [currentBoardId, agents, connections, currentBoard?.name]);
-
-  const handleImport = useCallback(async (file: File) => {
-    try {
-      const text = await file.text();
-      const importedData = JSON.parse(text);
-
-      // Import agents and connections if present
-      if (importedData.agents && Array.isArray(importedData.agents)) {
-        setAgents(importedData.agents);
-      }
-      if (importedData.connections && Array.isArray(importedData.connections)) {
-        setConnections(importedData.connections);
-      }
-
-      const importedBoard = await ExportImportService.importBoard(text);
-
-      // Update board with agents and connections
-      const settings: Record<string, any> = {};
-      if (importedData.agents) settings.agents = importedData.agents;
-      if (importedData.connections) settings.connections = importedData.connections;
-      if (Object.keys(settings).length > 0) {
-        await BoardService.update(importedBoard.id, { settings });
-      }
-
-      setBoards((prev) => [importedBoard, ...prev]);
-      setCurrentBoardId(importedBoard.id);
-      toast.success('Board imported');
-    } catch (error) {
-      console.error('Failed to import board:', error);
-      toast.error('Failed to import board. Invalid file format.');
-    }
-  }, []);
 
   if (isLoading) {
     return (
@@ -523,26 +460,11 @@ function App() {
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {currentBoard ? (
           <>
-            {/* Mobile Header with Menu Button */}
-            <div className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-gray-200 bg-white">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                onClick={() => setIsSidebarOpen(true)}
-              >
-                <Menu className="w-5 h-5" />
-              </Button>
-              <span className="font-semibold text-gray-800 truncate">{currentBoard.name}</span>
-            </div>
-
             <Toolbar
               boardName={currentBoard.name}
               boardId={currentBoard.id}
               permission={currentPermission}
               onAddBlock={handleAddBlock}
-              onExport={handleExport}
-              onImport={handleImport}
               onRenameBoard={handleRenameBoard}
               onDeleteBoard={() => handleDeleteBoard(currentBoard.id)}
               onlineUsers={onlineUsers}
@@ -550,6 +472,7 @@ function App() {
               onOpenAgentDialog={() => setIsAgentDialogOpen(true)}
               blocks={blocks}
               onFocusBlock={(blockId) => setFocusBlockId(blockId)}
+              onOpenSidebar={() => setIsSidebarOpen(true)}
             />
             <div className="flex-1 min-h-0">
               <Canvas
