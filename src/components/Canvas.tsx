@@ -335,7 +335,29 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   const [newAgentColor, setNewAgentColor] = useState('#3b82f6');
   const [fullScreenBlockId, setFullScreenBlockId] = useState<string | null>(null);
   const fullScreenBlock = useMemo(() => fullScreenBlockId ? blocks.find(b => b.id === fullScreenBlockId) || null : null, [fullScreenBlockId, blocks]);
-  const closeFullScreen = useCallback(() => setFullScreenBlockId(null), []);
+
+  // Push/pop browser history so device back button closes fullscreen instead of leaving the page
+  const openFullScreen = useCallback((blockId: string) => {
+    setFullScreenBlockId(blockId);
+    window.history.pushState({ fullscreen: true }, '');
+  }, []);
+  const closeFullScreen = useCallback(() => {
+    setFullScreenBlockId(prev => {
+      if (prev !== null) {
+        // Only go back if we pushed a state (avoid double-pop)
+        try { window.history.back(); } catch {}
+      }
+      return null;
+    });
+  }, []);
+  useEffect(() => {
+    const onPopState = () => {
+      // Browser back pressed — close fullscreen without another history.back()
+      setFullScreenBlockId(null);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   // Drag and drop state
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
@@ -516,7 +538,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
 
   const handleBlockDoubleTap = useCallback((blockId: string) => {
     if (isMobile) {
-      setFullScreenBlockId(blockId);
+      openFullScreen(blockId);
       return;
     }
     const block = blocks.find(b => b.id === blockId);
