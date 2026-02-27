@@ -2,7 +2,7 @@
 // Canvas Component - Infinite canvas with pan/zoom and bezier connections
 // ============================================
 
-import { useRef, useCallback, useState, useEffect } from 'react';
+import { useRef, useCallback, useState, useEffect, useMemo, memo } from 'react';
 import { BlockWrapper } from './BlockWrapper';
 import { DocBlock, KanbanBlock, InboxBlock, ChecklistBlock, TableBlock, TextBlock, FolderBlock, ImageBlock, HeadingBlock } from './blocks';
 import { BlockService } from '@/services/db';
@@ -183,6 +183,121 @@ function blockToFolderItem(block: Block): FolderItem {
   };
 }
 
+// Stable fullscreen block view — avoids IIFE remounting on every Canvas re-render.
+// Memoized so block content persists (scroll position, internal state) across parent renders.
+const FullScreenBlockView = memo(function FullScreenBlockView({
+  block,
+  onUpdate,
+  onClose,
+  connections,
+  blocks: allBlocks,
+  handleCardMoveBetweenBlocks,
+  handleConvertToTask,
+  handleConvertToDoc,
+  selectedBlockId,
+  dragOverFolderId,
+  draggedBlockId,
+  updateDragOverFolderId,
+  handleDropOnFolder,
+  handleFolderItemDragOut,
+}: {
+  block: Block;
+  onUpdate: (blockId: string, updates: any) => void;
+  onClose: () => void;
+  connections: any[];
+  blocks: Block[];
+  handleCardMoveBetweenBlocks: (fromId: string, toId: string, card: any) => void;
+  handleConvertToTask: (item: any, targetBlockId: string) => void;
+  handleConvertToDoc: (item: any) => void;
+  selectedBlockId: string | null;
+  dragOverFolderId: string | null;
+  draggedBlockId: string | null;
+  updateDragOverFolderId: (id: string | null) => void;
+  handleDropOnFolder: (folderId: string, blockId: string) => void;
+  handleFolderItemDragOut: (folderId: string, item: any, x: number, y: number) => void;
+}) {
+  const HEADER_H = 44;
+
+  // Stable onUpdate callback bound to this block's ID
+  const handleUpdate = useCallback((updates: any) => {
+    onUpdate(block.id, updates);
+  }, [block.id, onUpdate]);
+
+  const connectedBlockIds = useMemo(() =>
+    connections
+      .filter(c => c.fromBlockId === block.id || c.toBlockId === block.id)
+      .map(c => c.fromBlockId === block.id ? c.toBlockId : c.fromBlockId),
+    [connections, block.id]
+  );
+
+  const renderContent = () => {
+    switch (block.type) {
+      case 'doc':
+        return <DocBlock data={block.data as any} onUpdate={handleUpdate} />;
+      case 'kanban':
+        return (
+          <KanbanBlock
+            data={block.data as any}
+            onUpdate={handleUpdate}
+            connectedBlocks={connectedBlockIds}
+            onCardMoveToBlock={(card, targetBlockId) => handleCardMoveBetweenBlocks(block.id, targetBlockId, card)}
+            allBlocks={allBlocks}
+          />
+        );
+      case 'inbox':
+        return <InboxBlock data={block.data as any} onUpdate={handleUpdate} onConvertToTask={handleConvertToTask} onConvertToDoc={handleConvertToDoc} />;
+      case 'checklist':
+        return <ChecklistBlock data={block.data as any} onUpdate={handleUpdate} />;
+      case 'table':
+        return (
+          <TableBlock
+            data={block.data as any}
+            onUpdate={handleUpdate}
+            connectedBlocks={connectedBlockIds}
+            onCardMoveToBlock={(card, targetBlockId) => handleCardMoveBetweenBlocks(block.id, targetBlockId, card)}
+            allBlocks={allBlocks}
+          />
+        );
+      case 'text':
+        return <TextBlock data={block.data as any} onUpdate={handleUpdate} />;
+      case 'image':
+        return <ImageBlock data={block.data as any} onUpdate={handleUpdate} />;
+      case 'heading':
+        return <HeadingBlock data={block.data as any} onUpdate={handleUpdate} isSelected={selectedBlockId === block.id} />;
+      case 'folder':
+        return (
+          <FolderBlock
+            data={{ ...(block.data as any), id: block.id }}
+            onUpdate={handleUpdate}
+            isDropTarget={dragOverFolderId === block.id}
+            onDragOver={() => draggedBlockId && updateDragOverFolderId(block.id)}
+            onDragLeave={() => updateDragOverFolderId(null)}
+            onDropBlock={(droppedBlockId) => handleDropOnFolder(block.id, droppedBlockId)}
+            onItemDragOut={(item, x, y) => handleFolderItemDragOut(block.id, item, x, y)}
+          />
+        );
+      default:
+        return <div className="p-4 text-gray-500">Unknown block type</div>;
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-white flex flex-col">
+      <div style={{ height: HEADER_H }} className="flex items-center justify-between px-3 border-b border-gray-200 bg-white flex-shrink-0">
+        <h2 className="font-semibold text-gray-800 truncate text-sm">{getBlockTitle(block)}</h2>
+        <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={onClose}>
+          <X className="w-4 h-4" />
+        </Button>
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto">
+        <div className="h-full">
+          {renderContent()}
+        </div>
+      </div>
+    </div>
+  );
+});
+
 export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsChange, onAddImageBlock, permission = 'owner', isCollaborative = false, isSharedBoard = false, boardOwnerId, onOnlineUsersChange, isAgentDialogOpen: externalAgentDialogOpen, onAgentDialogOpenChange }: CanvasProps) {
   const { user } = useAuthContext();
   const isMobile = useIsMobile();
@@ -219,6 +334,8 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   const [newAgentName, setNewAgentName] = useState('');
   const [newAgentColor, setNewAgentColor] = useState('#3b82f6');
   const [fullScreenBlockId, setFullScreenBlockId] = useState<string | null>(null);
+  const fullScreenBlock = useMemo(() => fullScreenBlockId ? blocks.find(b => b.id === fullScreenBlockId) || null : null, [fullScreenBlockId, blocks]);
+  const closeFullScreen = useCallback(() => setFullScreenBlockId(null), []);
 
   // Drag and drop state
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
@@ -1112,28 +1229,25 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       )}
 
       {/* Mobile full-screen block view */}
-      {fullScreenBlockId && (() => {
-        const fsBlock = blocks.find(b => b.id === fullScreenBlockId);
-        if (!fsBlock) return null;
-        const HEADER_H = 44;
-        return (
-          <div className="fixed inset-0 z-[9999] bg-white flex flex-col">
-            {/* Header */}
-            <div style={{ height: HEADER_H }} className="flex items-center justify-between px-3 border-b border-gray-200 bg-white flex-shrink-0">
-              <h2 className="font-semibold text-gray-800 truncate text-sm">{getBlockTitle(fsBlock)}</h2>
-              <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => setFullScreenBlockId(null)}>
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-            {/* Content */}
-            <div className="flex-1 min-h-0 overflow-auto">
-              <div className="h-full">
-                {renderBlockContent(fsBlock)}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {fullScreenBlock && (
+        <FullScreenBlockView
+          key={fullScreenBlock.id}
+          block={fullScreenBlock}
+          onUpdate={handleBlockDataUpdate}
+          onClose={closeFullScreen}
+          connections={connections}
+          blocks={blocks}
+          handleCardMoveBetweenBlocks={handleCardMoveBetweenBlocks}
+          handleConvertToTask={handleConvertToTask}
+          handleConvertToDoc={handleConvertToDoc}
+          selectedBlockId={selectedBlockId}
+          dragOverFolderId={dragOverFolderId}
+          draggedBlockId={draggedBlockId}
+          updateDragOverFolderId={updateDragOverFolderId}
+          handleDropOnFolder={handleDropOnFolder}
+          handleFolderItemDragOut={handleFolderItemDragOut}
+        />
+      )}
 
       <Dialog open={!!editingConnection} onOpenChange={() => setEditingConnection(null)}>
         <DialogContent className="max-w-md" onPointerDownOutside={() => setEditingConnection(null)}>
