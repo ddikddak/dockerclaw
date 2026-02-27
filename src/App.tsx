@@ -4,7 +4,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { BoardService, BlockService } from '@/services/db';
-import { syncService } from '@/services/sync';
+import { syncService, hasLocalData } from '@/services/sync';
+import { SyncChoiceDialog, type SyncChoice } from '@/components/SyncChoiceDialog';
+import { db } from '@/services/db';
 import { BoardSharingService, SharedBlockService } from '@/services/boardSharing';
 import { supabase } from '@/lib/supabase';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -38,6 +40,8 @@ function App() {
   const [isAgentDialogOpen, setIsAgentDialogOpen] = useState(false);
   const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+  const [localBoardCount, setLocalBoardCount] = useState(0);
   const prevUserId = useRef<string | null>(null);
   const currentBoardIdRef = useRef<string | null>(null);
 
@@ -80,7 +84,6 @@ function App() {
       syncService.onRemoteChange(async (table) => {
         if (table === 'boards') {
           await loadBoards();
-          // Reload board settings (agents, connections) for current board
           const boardId = currentBoardIdRef.current;
           if (boardId) {
             const board = await BoardService.getById(boardId);
@@ -92,18 +95,35 @@ function App() {
           if (boardId) loadBlocks(boardId);
         }
       });
-      syncService.start(user);
-      // Always reload after pull (new session has empty Dexie)
-      syncService.pullFromCloud().then(() => {
-        loadBoards();
+
+      // Start realtime only (no push yet — wait for user choice if needed)
+      syncService.startRealtimeOnly(user);
+
+      // Check if we need to show the sync choice dialog
+      const alreadySynced = !!localStorage.getItem('dockerclaw_lastSyncedAt');
+      hasLocalData().then(async (hasLocal) => {
+        if (hasLocal && !alreadySynced) {
+          // First time sign-in with local data — ask user what to do
+          const count = await db.boards.count();
+          setLocalBoardCount(count);
+          setSyncDialogOpen(true);
+        } else {
+          // No dialog needed — silently push (if data exists) + pull
+          if (hasLocal) {
+            await syncService.pushAllAndFlush();
+          }
+          await syncService.pullFromCloud();
+          loadBoards();
+        }
       });
-      // Load shared boards and pending invites
+
       loadSharedBoards();
     } else if (!user && prevUserId.current) {
       prevUserId.current = null;
       syncService.stop();
       setSharedBoards([]);
       setPendingInvites([]);
+      setSyncDialogOpen(false);
     }
   }, [user]);
 
@@ -280,6 +300,17 @@ function App() {
     }
   }, []);
 
+  const handleSyncChoice = useCallback(async (choice: SyncChoice) => {
+    if (choice === 'upload') {
+      await syncService.pushAllAndFlush();
+      await syncService.pullFromCloud();
+    } else {
+      await syncService.clearLocalAndPullFresh();
+    }
+    setSyncDialogOpen(false);
+    loadBoards();
+  }, []);
+
   const handleCreateBoard = useCallback(async (name: string) => {
     try {
       const newBoard = await BoardService.create({
@@ -426,6 +457,11 @@ function App() {
   return (
     <div className="h-screen flex bg-white overflow-hidden">
       <Toaster position="top-right" closeButton toastOptions={{ style: { zIndex: 99999 } }} />
+      <SyncChoiceDialog
+        open={syncDialogOpen}
+        onChoice={handleSyncChoice}
+        localBoardCount={localBoardCount}
+      />
 
       {/* Desktop Sidebar */}
       <div className="hidden md:block">

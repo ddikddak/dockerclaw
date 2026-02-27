@@ -42,6 +42,36 @@ class SyncService {
     this.subscribeRealtime();
   }
 
+  /** Start realtime subscriptions without pushing local data */
+  startRealtimeOnly(user: User) {
+    this.user = user;
+    console.log('[sync] started realtime-only for', user.email);
+    this.subscribeRealtime();
+  }
+
+  /** Push all local data and flush the sync queue */
+  async pushAllAndFlush() {
+    this.flushQueue();
+    await this.pushAllLocal();
+  }
+
+  /** Wipe all local Dexie data and pull fresh from cloud */
+  async clearLocalAndPullFresh(): Promise<boolean> {
+    if (!supabase || !this.user) return false;
+
+    try {
+      await db.boards.clear();
+      await db.blocks.clear();
+      await db._syncQueue.clear();
+      localStorage.removeItem('dockerclaw_lastSyncedAt');
+      console.log('[sync] cleared local data, pulling fresh from cloud');
+      return await this.pullFromCloud();
+    } catch (err) {
+      console.warn('[sync] clearLocalAndPullFresh failed:', err);
+      return false;
+    }
+  }
+
   stop() {
     this.user = null;
     this.unsubscribeRealtime();
@@ -374,3 +404,9 @@ class SyncService {
 }
 
 export const syncService = new SyncService();
+
+/** Check if Dexie has any local boards */
+export async function hasLocalData(): Promise<boolean> {
+  const boardCount = await db.boards.count();
+  return boardCount > 0;
+}
