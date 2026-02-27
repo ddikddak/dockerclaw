@@ -40,6 +40,7 @@ function App() {
   const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
   const [connections, setConnections] = useState<Connection[]>([]);
   const prevUserId = useRef<string | null>(null);
+  const currentBoardIdRef = useRef<string | null>(null);
 
   // Warn before leaving when a board is open
   useEffect(() => {
@@ -63,6 +64,11 @@ function App() {
     return 'owner';
   }, [currentBoardId, user, boards, sharedBoards]);
 
+  // Keep ref in sync so the realtime callback always has the latest board ID
+  useEffect(() => {
+    currentBoardIdRef.current = currentBoardId;
+  }, [currentBoardId]);
+
   // Load boards on mount
   useEffect(() => {
     loadBoards();
@@ -72,9 +78,16 @@ function App() {
   useEffect(() => {
     if (user && user.id !== prevUserId.current) {
       prevUserId.current = user.id;
-      syncService.onRemoteChange(() => {
-        loadBoards();
-        if (currentBoardId) loadBlocks(currentBoardId);
+      syncService.onRemoteChange(async () => {
+        await loadBoards();
+        const boardId = currentBoardIdRef.current;
+        if (boardId) {
+          loadBlocks(boardId);
+          // Reload board settings (agents, connections)
+          const board = await BoardService.getById(boardId);
+          if (board?.settings?.agents) setAgents(board.settings.agents);
+          if (board?.settings?.connections) setConnections(board.settings.connections);
+        }
       });
       syncService.start(user);
       // Always reload after pull (new session has empty Dexie)

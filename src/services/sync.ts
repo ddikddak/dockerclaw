@@ -159,7 +159,7 @@ class SyncService {
     // Persist to Dexie queue (survives app restart)
     db._syncQueue.put(item);
 
-    // Debounce push per record (1.5s)
+    // Debounce push per record (500ms)
     const key = `${table}:${recordId}`;
     if (this.pushTimers.has(key)) {
       clearTimeout(this.pushTimers.get(key)!);
@@ -167,7 +167,7 @@ class SyncService {
     this.pushTimers.set(key, setTimeout(() => {
       this.pushTimers.delete(key);
       this.pushRecord(table, recordId, action);
-    }, 1500));
+    }, 500));
   }
 
   // ---- Push single record to Supabase ----
