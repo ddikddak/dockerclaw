@@ -44,8 +44,9 @@ import {
   MoreHorizontal,
   Users,
   Heading,
+  Crosshair,
 } from 'lucide-react';
-import type { BlockType, BoardPermission, Agent } from '@/types';
+import type { Block, BlockType, BoardPermission, Agent } from '@/types';
 import type { PresenceUser } from '@/services/collaboration';
 import { ShareDialog } from '@/components/ShareDialog';
 
@@ -61,6 +62,8 @@ interface ToolbarProps {
   onlineUsers?: PresenceUser[];
   agents?: Agent[];
   onOpenAgentDialog?: () => void;
+  blocks?: Block[];
+  onFocusBlock?: (blockId: string) => void;
 }
 
 const BLOCK_TYPES: { type: BlockType; label: string; icon: React.ReactNode; description: string }[] = [
@@ -87,6 +90,8 @@ export function Toolbar({
   onlineUsers = [],
   agents = [],
   onOpenAgentDialog,
+  blocks = [],
+  onFocusBlock,
 }: ToolbarProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(boardName);
@@ -112,6 +117,35 @@ export function Toolbar({
   const handleAddBlock = (type: BlockType) => {
     onAddBlock(type);
     setIsAddBlockOpen(false);
+  };
+
+  // Block name helper for navigator
+  const getBlockName = (block: Block): string => {
+    const data = block.data as any;
+    switch (block.type) {
+      case 'doc': return data?.title || 'Untitled Document';
+      case 'kanban': return `Kanban (${data?.columns?.length || 0} cols)`;
+      case 'inbox': return `Inbox (${data?.items?.length || 0})`;
+      case 'checklist': return data?.title || `Checklist (${data?.items?.length || 0})`;
+      case 'table': return `Table (${data?.rows?.length || 0} rows)`;
+      case 'text': return (data?.content?.slice(0, 30) || 'Text Note') + (data?.content?.length > 30 ? '...' : '');
+      case 'heading': return data?.content || 'Heading';
+      case 'folder': return data?.name || 'Folder';
+      case 'image': return data?.fileName || 'Image';
+      default: return block.type;
+    }
+  };
+
+  const BLOCK_TYPE_ICONS: Record<BlockType, React.ReactNode> = {
+    doc: <FileText className="w-4 h-4" />,
+    kanban: <Kanban className="w-4 h-4" />,
+    inbox: <Inbox className="w-4 h-4" />,
+    checklist: <CheckSquare className="w-4 h-4" />,
+    table: <Table className="w-4 h-4" />,
+    text: <StickyNote className="w-4 h-4" />,
+    heading: <Heading className="w-4 h-4" />,
+    folder: <Folder className="w-4 h-4" />,
+    image: <ImageIcon className="w-4 h-4" />,
   };
 
   // Mobile Add Block Sheet
@@ -209,6 +243,33 @@ export function Toolbar({
         {/* Desktop: Dropdown */}
         <div className="hidden md:block">{DesktopAddBlockDropdown}</div>
       </div>
+
+      {/* Block Navigator */}
+      {blocks.length > 0 && onFocusBlock && (
+        <div className="flex-shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1 md:gap-2">
+                <Crosshair className="w-4 h-4" />
+                <span className="hidden sm:inline">Go to</span>
+                <span className="text-xs text-gray-400 hidden md:inline">({blocks.length})</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center" className="w-64 max-h-80 overflow-y-auto">
+              {blocks.map((block) => (
+                <DropdownMenuItem
+                  key={block.id}
+                  onClick={() => onFocusBlock(block.id)}
+                  className="flex items-center gap-3 py-2"
+                >
+                  <div className="text-gray-500 flex-shrink-0">{BLOCK_TYPE_ICONS[block.type]}</div>
+                  <span className="truncate text-sm">{getBlockName(block)}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">

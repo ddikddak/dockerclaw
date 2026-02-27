@@ -37,6 +37,7 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<PresenceUser[]>([]);
   const [isAgentDialogOpen, setIsAgentDialogOpen] = useState(false);
+  const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
   const prevUserId = useRef<string | null>(null);
 
   // Warn before leaving when a board is open
@@ -329,6 +330,7 @@ function App() {
         : await BlockService.create(blockData);
 
       setBlocks((prev) => [...prev, newBlock]);
+      setFocusBlockId(newBlock.id);
       toast.success(`${type} block added`);
     } catch (error) {
       console.error('Failed to add block:', error);
@@ -503,6 +505,8 @@ function App() {
               onlineUsers={onlineUsers}
               agents={agents}
               onOpenAgentDialog={() => setIsAgentDialogOpen(true)}
+              blocks={blocks}
+              onFocusBlock={(blockId) => setFocusBlockId(blockId)}
             />
             <div className="flex-1 min-h-0">
               <Canvas
@@ -519,6 +523,8 @@ function App() {
                 onOnlineUsersChange={setOnlineUsers}
                 isAgentDialogOpen={isAgentDialogOpen}
                 onAgentDialogOpenChange={setIsAgentDialogOpen}
+                focusBlockId={focusBlockId}
+                onFocusBlockHandled={() => setFocusBlockId(null)}
               />
             </div>
           </>

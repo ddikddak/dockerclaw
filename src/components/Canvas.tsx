@@ -44,6 +44,8 @@ interface CanvasProps {
   onOnlineUsersChange?: (users: PresenceUser[]) => void;
   isAgentDialogOpen?: boolean;
   onAgentDialogOpenChange?: (open: boolean) => void;
+  focusBlockId?: string | null;
+  onFocusBlockHandled?: () => void;
 }
 
 const DEFAULT_ZOOM = 1;
@@ -298,7 +300,7 @@ const FullScreenBlockView = memo(function FullScreenBlockView({
   );
 });
 
-export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsChange, onAddImageBlock, permission = 'owner', isCollaborative = false, isSharedBoard = false, boardOwnerId, onOnlineUsersChange, isAgentDialogOpen: externalAgentDialogOpen, onAgentDialogOpenChange }: CanvasProps) {
+export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsChange, onAddImageBlock, permission = 'owner', isCollaborative = false, isSharedBoard = false, boardOwnerId, onOnlineUsersChange, isAgentDialogOpen: externalAgentDialogOpen, onAgentDialogOpenChange, focusBlockId, onFocusBlockHandled }: CanvasProps) {
   const { user } = useAuthContext();
   const isMobile = useIsMobile();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -358,6 +360,35 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
+
+  // Auto-focus on a block (e.g. after adding a new one)
+  useEffect(() => {
+    if (!focusBlockId) return;
+    const block = blocks.find(b => b.id === focusBlockId);
+    if (!block) return;
+    const canvas = canvasRef.current;
+    const el = transformRef.current;
+    if (!canvas || !el) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const PADDING = 1.3;
+    const zoomToFit = Math.min(rect.width / (block.w * PADDING), rect.height / (block.h * PADDING));
+    const targetZoom = Math.max(MIN_ZOOM, Math.min(zoomToFit, 1.5));
+    const newPanX = rect.width / 2 - (block.x + block.w / 2) * targetZoom;
+    const newPanY = rect.height / 2 - (block.y + block.h / 2) * targetZoom;
+
+    el.animate(
+      [
+        { transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` },
+        { transform: `translate(${newPanX}px, ${newPanY}px) scale(${targetZoom})` },
+      ],
+      { duration: 300, easing: 'ease-out', fill: 'none' }
+    );
+
+    setZoom(targetZoom);
+    setPan({ x: newPanX, y: newPanY });
+    onFocusBlockHandled?.();
+  }, [focusBlockId]);
 
   // Drag and drop state
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
