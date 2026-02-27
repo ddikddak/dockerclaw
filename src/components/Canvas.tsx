@@ -207,7 +207,7 @@ const FullScreenBlockView = memo(function FullScreenBlockView({
   connections: any[];
   blocks: Block[];
   handleCardMoveBetweenBlocks: (fromId: string, toId: string, card: any) => void;
-  handleConvertToTask: (item: any, targetBlockId: string) => void;
+  handleConvertToTask: (item: any) => void;
   handleConvertToDoc: (item: any) => void;
   selectedBlockId: string | null;
   dragOverFolderId: string | null;
