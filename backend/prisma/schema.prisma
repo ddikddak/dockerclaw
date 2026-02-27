@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Per desenvolupament local amb SQLite, canviar a:
+// datasource db {
+//   provider = "sqlite"
+//   url      = env("DATABASE_URL")
+// }
+
+model Board {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  apiKey      String   @unique @map("api_key")
+  createdAt   DateTime @default(now()) @map("created_at")
+  documents   Document[]
+
+  @@map("boards")
+}
+
+model Document {
+  id        String   @id @default(uuid())
+  boardId   String   @map("board_id")
+  title     String
+  content   String
+  author    String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([boardId, createdAt])
+  @@map("documents")
+}

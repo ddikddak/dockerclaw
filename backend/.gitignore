@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Database
+dev.db
+*.db
+*.db-journal
+
+# Environment
+.env
+.env.local
+
+# Build
+dist/
+build/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
