@@ -6,6 +6,7 @@ import { useRef, useCallback, useState, useEffect } from 'react';
 import { BlockWrapper } from './BlockWrapper';
 import { DocBlock, KanbanBlock, InboxBlock, ChecklistBlock, TableBlock, TextBlock, FolderBlock, ImageBlock } from './blocks';
 import { BlockService } from '@/services/db';
+import { SharedBlockService } from '@/services/boardSharing';
 import { ZoomIn, ZoomOut, Maximize, Move, Link2, Unlink, Users, Folder, Grid3X3, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,7 +24,10 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { Block, BlockData, Board, InboxItem, BlockType, Connection, ConnectionType, Agent, FolderItem } from '@/types';
+import { CollaboratorCursors } from './CollaboratorCursors';
+import { collaborationService, type PresenceUser } from '@/services/collaboration';
+import { useAuthContext } from '@/contexts/AuthContext';
+import type { Block, BlockData, Board, InboxItem, BlockType, Connection, ConnectionType, Agent, FolderItem, BoardPermission } from '@/types';
 
 interface CanvasProps {
   board: Board;
@@ -32,6 +36,11 @@ interface CanvasProps {
   agents?: Agent[];
   onAgentsChange?: (agents: Agent[]) => void;
   onAddImageBlock?: (x: number, y: number, base64: string, fileName: string) => void;
+  permission?: BoardPermission;
+  isCollaborative?: boolean;
+  isSharedBoard?: boolean;
+  boardOwnerId?: string;
+  onOnlineUsersChange?: (users: PresenceUser[]) => void;
 }
 
 const DEFAULT_ZOOM = 1;
@@ -169,11 +178,16 @@ function blockToFolderItem(block: Block): FolderItem {
   };
 }
 
-export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsChange, onAddImageBlock }: CanvasProps) {
+export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsChange, onAddImageBlock, permission = 'owner', isCollaborative = false, isSharedBoard = false, boardOwnerId, onOnlineUsersChange }: CanvasProps) {
+  const { user } = useAuthContext();
   const canvasRef = useRef<HTMLDivElement>(null);
   const transformRef = useRef<HTMLDivElement>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [maxZIndex, setMaxZIndex] = useState(1);
+
+  // Collaboration state
+  const [remoteCursors, setRemoteCursors] = useState<Map<string, { x: number; y: number; email: string; color: string }>>(new Map());
+  const [remoteSelections, setRemoteSelections] = useState<Map<string, { blockId: string; color: string }>>(new Map());
   
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -219,36 +233,130 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     };
   }, []);
 
+  // Join/leave collaboration channel (only for boards with collaborators)
+  useEffect(() => {
+    if (!user || !isCollaborative) {
+      // Clear any stale state
+      setRemoteCursors(new Map());
+      setRemoteSelections(new Map());
+      onOnlineUsersChange?.([]);
+      return;
+    }
+
+    collaborationService.join(board.id, user);
+
+    collaborationService.setOnCursorMove((update) => {
+      setRemoteCursors((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(update.userId);
+        if (existing) {
+          next.set(update.userId, { ...existing, x: update.x, y: update.y });
+        }
+        return next;
+      });
+    });
+
+    collaborationService.setOnSelectionChange((update) => {
+      setRemoteSelections((prev) => {
+        const next = new Map(prev);
+        if (update.blockId) {
+          const cursor = remoteCursors.get(update.userId);
+          next.set(update.userId, { blockId: update.blockId, color: cursor?.color || '#3b82f6' });
+        } else {
+          next.delete(update.userId);
+        }
+        return next;
+      });
+    });
+
+    // Update cursor map and online users when presence changes
+    collaborationService.setOnPresenceChange((users) => {
+      onOnlineUsersChange?.(users);
+      setRemoteCursors((prev) => {
+        const next = new Map<string, { x: number; y: number; email: string; color: string }>();
+        for (const u of users) {
+          const existing = prev.get(u.userId);
+          next.set(u.userId, {
+            x: existing?.x ?? u.cursorX,
+            y: existing?.y ?? u.cursorY,
+            email: u.email,
+            color: u.color,
+          });
+        }
+        return next;
+      });
+    });
+
+    return () => {
+      collaborationService.leave();
+      setRemoteCursors(new Map());
+      setRemoteSelections(new Map());
+      onOnlineUsersChange?.([]);
+    };
+  }, [board.id, user, isCollaborative]);
+
+  // Broadcast selection changes (only when collaborative)
+  useEffect(() => {
+    if (isCollaborative) {
+      collaborationService.broadcastSelection(selectedBlockId);
+    }
+  }, [selectedBlockId, isCollaborative]);
+
+  const isViewOnly = permission === 'viewer';
+
   const handleBlockUpdate = useCallback(async (blockId: string, updates: Partial<Block>) => {
-    await BlockService.update(blockId, updates);
+    if (isSharedBoard) {
+      await SharedBlockService.update(blockId, updates);
+    } else {
+      await BlockService.update(blockId, updates);
+    }
     onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, ...updates } : b));
-  }, [blocks, onBlocksChange]);
+  }, [blocks, onBlocksChange, isSharedBoard]);
 
   const handleBlockDataUpdate = useCallback(async (blockId: string, dataUpdates: any) => {
     const block = blocks.find(b => b.id === blockId);
     if (!block) return;
     const updatedData = { ...block.data, ...dataUpdates };
-    await BlockService.update(blockId, { data: updatedData });
+    if (isSharedBoard) {
+      await SharedBlockService.update(blockId, { data: updatedData });
+    } else {
+      await BlockService.update(blockId, { data: updatedData });
+    }
     onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, data: updatedData } : b));
-  }, [blocks, onBlocksChange]);
+  }, [blocks, onBlocksChange, isSharedBoard]);
 
   const handleBlockDuplicate = useCallback(async (blockId: string) => {
-    const newBlock = await BlockService.duplicate(blockId);
-    onBlocksChange([...blocks, newBlock]);
-  }, [blocks, onBlocksChange]);
+    if (isSharedBoard && boardOwnerId) {
+      const block = blocks.find(b => b.id === blockId);
+      if (!block) return;
+      const newBlock = await SharedBlockService.duplicate(block, boardOwnerId);
+      onBlocksChange([...blocks, newBlock]);
+    } else {
+      const newBlock = await BlockService.duplicate(blockId);
+      onBlocksChange([...blocks, newBlock]);
+    }
+  }, [blocks, onBlocksChange, isSharedBoard, boardOwnerId]);
 
   const handleBlockDelete = useCallback(async (blockId: string) => {
-    await BlockService.delete(blockId);
+    if (isSharedBoard) {
+      await SharedBlockService.delete(blockId);
+    } else {
+      await BlockService.delete(blockId);
+    }
     onBlocksChange(blocks.filter(b => b.id !== blockId));
     setConnections(prev => prev.filter(c => c.fromBlockId !== blockId && c.toBlockId !== blockId));
-  }, [blocks, onBlocksChange]);
+  }, [blocks, onBlocksChange, isSharedBoard]);
 
   const handleBringToFront = useCallback(async (blockId: string) => {
     const newZIndex = maxZIndex + 1;
-    await BlockService.updateZIndex(blockId, newZIndex);
+    if (isSharedBoard) {
+      await SharedBlockService.update(blockId, { z: newZIndex } as Partial<Block>);
+    } else {
+      await BlockService.updateZIndex(blockId, newZIndex);
+    }
     setMaxZIndex(newZIndex);
     onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, z: newZIndex } : b));
-  }, [blocks, maxZIndex, onBlocksChange]);
+  }, [blocks, maxZIndex, onBlocksChange, isSharedBoard]);
 
   const getCanvasCenter = useCallback(() => {
     const canvas = canvasRef.current;
@@ -319,7 +427,18 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     }
   }, [handlePanStart]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => handlePanMove(e.clientX, e.clientY), [handlePanMove]);
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    handlePanMove(e.clientX, e.clientY);
+    // Broadcast cursor position for collaboration (only when collaborative)
+    if (isCollaborative) {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (rect) {
+        const canvasX = (e.clientX - rect.left - pan.x) / zoom;
+        const canvasY = (e.clientY - rect.top - pan.y) / zoom;
+        collaborationService.broadcastCursor(canvasX, canvasY);
+      }
+    }
+  }, [handlePanMove, pan, zoom, isCollaborative]);
   const handleMouseUp = useCallback(() => handlePanEnd(), [handlePanEnd]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -842,21 +961,21 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
               block={block}
               isSelected={selectedBlockId === block.id}
               onSelect={() => handleBlockSelect(block.id)}
-              onUpdate={(updates) => handleBlockUpdate(block.id, updates)}
-              onDuplicate={() => handleBlockDuplicate(block.id)}
-              onDelete={() => handleBlockDelete(block.id)}
+              onUpdate={isViewOnly ? () => {} : (updates) => handleBlockUpdate(block.id, updates)}
+              onDuplicate={isViewOnly ? () => {} : () => handleBlockDuplicate(block.id)}
+              onDelete={isViewOnly ? () => {} : () => handleBlockDelete(block.id)}
               onBringToFront={() => handleBringToFront(block.id)}
               title={getBlockTitle(block)}
-              onTitleChange={(title) => handleTitleChange(block.id, title)}
+              onTitleChange={isViewOnly ? undefined : (title) => handleTitleChange(block.id, title)}
               zoom={zoom}
               isConnecting={isConnecting}
               connectionStart={connectionStart}
               onStartConnection={() => handleStartConnection(block.id)}
               agents={agents}
-              onToggleAgentAccess={(agentId) => toggleAgentAccess(block.id, agentId)}
-              onDragStart={() => handleBlockDragStart(block.id)}
-              onDragEnd={(screenX, screenY) => handleBlockDragEnd(block.id, screenX, screenY)}
-              onDragMove={handleBlockDragMove}
+              onToggleAgentAccess={isViewOnly ? undefined : (agentId) => toggleAgentAccess(block.id, agentId)}
+              onDragStart={isViewOnly ? undefined : () => handleBlockDragStart(block.id)}
+              onDragEnd={isViewOnly ? undefined : (screenX, screenY) => handleBlockDragEnd(block.id, screenX, screenY)}
+              onDragMove={isViewOnly ? undefined : handleBlockDragMove}
               headerActions={block.type === 'folder' ? (
                 <Button
                   variant="ghost"
@@ -876,6 +995,23 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
               {renderBlockContent(block)}
             </BlockWrapper>
           ))}
+
+          {/* Remote collaborator cursors */}
+          <CollaboratorCursors
+            cursors={Array.from(remoteCursors.entries()).map(([userId, data]) => ({
+              userId,
+              email: data.email,
+              color: data.color,
+              x: data.x,
+              y: data.y,
+            }))}
+            selections={Array.from(remoteSelections.entries()).map(([userId, data]) => ({
+              userId,
+              color: data.color,
+              blockId: data.blockId,
+            }))}
+            blocks={blocks}
+          />
         </div>
       </div>
 

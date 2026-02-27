@@ -200,6 +200,13 @@ class SyncService {
       } else {
         const block = await db.blocks.get(recordId);
         if (!block) return;
+        // Skip orphaned blocks (no boardId = board was deleted)
+        if (!block.boardId) {
+          console.warn(`[sync] skipping orphaned block ${recordId} (no boardId), deleting from local`);
+          await db.blocks.delete(recordId);
+          await db._syncQueue.where({ table, recordId }).delete();
+          return;
+        }
         const { error } = await supabase.from('blocks').upsert({
           id: block.id,
           user_id: this.user.id,

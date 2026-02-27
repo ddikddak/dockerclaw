@@ -43,15 +43,20 @@ import {
   Edit3,
   MoreHorizontal,
 } from 'lucide-react';
-import type { BlockType } from '@/types';
+import type { BlockType, BoardPermission } from '@/types';
+import type { PresenceUser } from '@/services/collaboration';
+import { ShareDialog } from '@/components/ShareDialog';
 
 interface ToolbarProps {
   boardName: string;
+  boardId: string;
+  permission: BoardPermission;
   onAddBlock: (type: BlockType) => void;
   onExport: () => void;
   onImport: (file: File) => void;
   onRenameBoard: (name: string) => void;
   onDeleteBoard: () => void;
+  onlineUsers?: PresenceUser[];
 }
 
 const BLOCK_TYPES: { type: BlockType; label: string; icon: React.ReactNode; description: string }[] = [
@@ -67,11 +72,14 @@ const BLOCK_TYPES: { type: BlockType; label: string; icon: React.ReactNode; desc
 
 export function Toolbar({
   boardName,
+  boardId,
+  permission,
   onAddBlock,
   onExport,
   onImport,
   onRenameBoard,
   onDeleteBoard,
+  onlineUsers = [],
 }: ToolbarProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(boardName);
@@ -197,6 +205,34 @@ export function Toolbar({
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+        {/* Online users */}
+        {onlineUsers.length > 0 && (
+          <div className="hidden sm:flex items-center gap-1">
+            {onlineUsers.slice(0, 5).map((u) => (
+              <div
+                key={u.userId}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-medium"
+                style={{ backgroundColor: u.color }}
+                title={u.email}
+              >
+                {u.email[0]?.toUpperCase()}
+              </div>
+            ))}
+            {onlineUsers.length > 5 && (
+              <span className="text-xs text-gray-500">+{onlineUsers.length - 5}</span>
+            )}
+          </div>
+        )}
+
+        {/* Share button */}
+        <div className="hidden sm:block">
+          <ShareDialog
+            boardId={boardId}
+            isOwner={permission === 'owner'}
+            onlineUsers={onlineUsers}
+          />
+        </div>
+
         {/* Export - hidden on small mobile */}
         <Button 
           variant="outline" 

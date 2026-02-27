@@ -250,6 +250,27 @@ export interface UpdateBlockDTO {
 }
 
 // ============================================
+// Board Collaboration
+// ============================================
+export type CollaboratorRole = 'editor' | 'viewer';
+export type InviteStatus = 'pending' | 'accepted';
+
+export interface BoardCollaborator {
+  id: string;
+  boardId: string;
+  userId: string | null;
+  email: string;
+  role: CollaboratorRole;
+  invitedBy: string;
+  status: InviteStatus;
+  boardName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type BoardPermission = 'owner' | 'editor' | 'viewer';
+
+// ============================================
 // Export/Import
 // ============================================
 export interface ExportedBoard {
