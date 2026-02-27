@@ -1,6 +1,7 @@
 // ============================================
 // Toolbar Component - Add blocks and board actions
 // Mobile responsive with compact layout
+// Includes API Key display for DockerClaw v1
 // ============================================
 
 import { useState, useRef } from 'react';
@@ -41,11 +42,16 @@ import {
   Trash2,
   Edit3,
   MoreHorizontal,
+  Key,
+  Copy,
+  Check,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { BlockType } from '@/types';
 
 interface ToolbarProps {
   boardName: string;
+  boardApiKey?: string;
   onAddBlock: (type: BlockType) => void;
   onExport: () => void;
   onImport: (file: File) => void;
@@ -65,6 +71,7 @@ const BLOCK_TYPES: { type: BlockType; label: string; icon: React.ReactNode; desc
 
 export function Toolbar({
   boardName,
+  boardApiKey,
   onAddBlock,
   onExport,
   onImport,
@@ -75,6 +82,8 @@ export function Toolbar({
   const [editName, setEditName] = useState(boardName);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAddBlockOpen, setIsAddBlockOpen] = useState(false);
+  const [isApiKeyOpen, setIsApiKeyOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleNameSubmit = () => {
@@ -95,6 +104,19 @@ export function Toolbar({
   const handleAddBlock = (type: BlockType) => {
     onAddBlock(type);
     setIsAddBlockOpen(false);
+  };
+
+  const handleCopyApiKey = async () => {
+    if (!boardApiKey) return;
+    
+    try {
+      await navigator.clipboard.writeText(boardApiKey);
+      setCopied(true);
+      toast.success('API Key copied to clipboard');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      toast.error('Failed to copy API Key');
+    }
   };
 
   // Mobile Add Block Sheet
@@ -195,6 +217,67 @@ export function Toolbar({
 
       {/* Right: Actions */}
       <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+        {/* API Key Button */}
+        {boardApiKey && (
+          <Dialog open={isApiKeyOpen} onOpenChange={setIsApiKeyOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-1 md:gap-2 hidden sm:flex"
+              >
+                <Key className="w-4 h-4" />
+                <span className="hidden md:inline">API Key</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Key className="w-5 h-5" />
+                  Board API Key
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <p className="text-sm text-gray-600">
+                  Use this API Key to authenticate agents when pushing documents to this board.
+                </p>
+                <div className="bg-gray-100 rounded-lg p-4">
+                  <code className="text-xs font-mono break-all text-gray-800">
+                    {boardApiKey}
+                  </code>
+                </div>
+                <Button
+                  onClick={handleCopyApiKey}
+                  className="w-full gap-2"
+                  variant={copied ? "secondary" : "default"}
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      Copy API Key
+                    </>
+                  )}
+                </Button>
+                <div className="text-xs text-gray-500 bg-blue-50 p-3 rounded-lg">
+                  <strong>Example curl:</strong>
+                  <pre className="mt-1 overflow-x-auto text-xs">
+{`curl -X POST \\
+  http://localhost:3001/api/boards/{board-id}/documents \\
+  -H "X-API-Key: {your-api-key}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"title":"My Doc","content":"# Hello","author":"agent"}'`}
+                  </pre>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
         {/* Export - hidden on small mobile */}
         <Button 
           variant="outline" 
@@ -237,6 +320,19 @@ export function Toolbar({
                 <SheetTitle>Actions</SheetTitle>
               </SheetHeader>
               <div className="py-4 space-y-2">
+                {boardApiKey && (
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start gap-2"
+                    onClick={() => {
+                      navigator.clipboard.writeText(boardApiKey);
+                      toast.success('API Key copied');
+                    }}
+                  >
+                    <Key className="w-4 h-4" />
+                    Copy API Key
+                  </Button>
+                )}
                 <Button variant="outline" className="w-full justify-start gap-2" onClick={onExport}>
                   <Download className="w-4 h-4" />
                   Export Board
@@ -287,6 +383,33 @@ export function Toolbar({
                     className="mt-1"
                   />
                 </div>
+                
+                {boardApiKey && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <Key className="w-4 h-4" />
+                      API Key
+                    </label>
+                    <div className="mt-1 flex gap-2">
+                      <Input
+                        value={boardApiKey}
+                        readOnly
+                        className="font-mono text-xs"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleCopyApiKey}
+                      >
+                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Use this key to authenticate agents pushing documents.
+                    </p>
+                  </div>
+                )}
+                
                 <div className="pt-4 border-t border-gray-200">
                   <Button
                     variant="destructive"

@@ -1,13 +1,14 @@
 // ============================================
 // Main App Component - Mobile Responsive
+// Backend API Integration (DockerClaw v1)
 // ============================================
 
 import { useState, useEffect, useCallback } from 'react';
-import { BoardService, BlockService, ExportImportService } from '@/services/db';
+import { BoardService, DocumentService, type DocumentPreview } from '@/services/db';
+import { BoardsApiService } from '@/services/boardsApi';
 import { BoardSelector } from '@/components/BoardSelector';
 import { Toolbar } from '@/components/Toolbar';
 import { Canvas } from '@/components/Canvas';
-import { createDefaultBlockData, DEFAULT_BLOCK_SIZES } from '@/lib/blockDefaults';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ import type { Board, Block, BlockType, Agent } from '@/types';
 function App() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [currentBoardId, setCurrentBoardId] = useState<string | null>(null);
-  const [blocks, setBlocks] = useState<Block[]>([]);
+  const [documents, setDocuments] = useState<DocumentPreview[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -27,10 +28,10 @@ function App() {
     loadBoards();
   }, []);
 
-  // Load blocks when current board changes
+  // Load documents when current board changes
   useEffect(() => {
     if (currentBoardId) {
-      loadBlocks(currentBoardId);
+      loadDocuments(currentBoardId);
       // Load agents from board settings
       const board = boards.find(b => b.id === currentBoardId);
       if (board?.settings?.agents) {
@@ -39,19 +40,10 @@ function App() {
         setAgents([]);
       }
     } else {
-      setBlocks([]);
+      setDocuments([]);
       setAgents([]);
     }
   }, [currentBoardId, boards]);
-
-  // Save agents when they change
-  useEffect(() => {
-    if (currentBoardId && agents.length >= 0) {
-      BoardService.update(currentBoardId, {
-        settings: { agents }
-      });
-    }
-  }, [agents, currentBoardId]);
 
   const loadBoards = async () => {
     try {
@@ -64,35 +56,31 @@ function App() {
       }
     } catch (error) {
       console.error('Failed to load boards:', error);
-      toast.error('Failed to load boards');
+      toast.error('Failed to load boards. Is the backend running?');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadBlocks = async (boardId: string) => {
+  const loadDocuments = async (boardId: string) => {
     try {
-      const boardBlocks = await BlockService.getByBoardId(boardId);
-      setBlocks(boardBlocks);
+      const docs = await DocumentService.getAll(boardId);
+      setDocuments(docs);
     } catch (error) {
-      console.error('Failed to load blocks:', error);
-      toast.error('Failed to load blocks');
+      console.error('Failed to load documents:', error);
+      toast.error('Failed to load documents');
     }
   };
 
   const handleCreateBoard = useCallback(async (name: string) => {
     try {
-      const newBoard = await BoardService.create({
-        id: crypto.randomUUID(),
+      const newBoard = await BoardsApiService.create({
         name,
-        canvas: { width: 6000, height: 4000 },
-        settings: { agents: [] },
       });
       
       setBoards((prev) => [newBoard, ...prev]);
       setCurrentBoardId(newBoard.id);
-      setAgents([]);
-      toast.success('Board created');
+      toast.success('Board created! API Key available in settings.');
     } catch (error) {
       console.error('Failed to create board:', error);
       toast.error('Failed to create board');
@@ -106,7 +94,7 @@ function App() {
 
   const handleDeleteBoard = useCallback(async (boardId: string) => {
     try {
-      await BoardService.delete(boardId);
+      await BoardsApiService.delete(boardId);
       setBoards((prev) => prev.filter((b) => b.id !== boardId));
       
       if (currentBoardId === boardId) {
@@ -137,37 +125,61 @@ function App() {
     }
   }, [currentBoardId]);
 
-  const handleAddBlock = useCallback(async (type: BlockType, x?: number, y?: number) => {
+  // Convert documents to blocks for Canvas compatibility
+  const blocks: Block[] = documents.map((doc, index) => ({
+    id: doc.id,
+    boardId: currentBoardId || '',
+    type: 'doc' as BlockType,
+    x: 100 + (index % 3) * 420,
+    y: 100 + Math.floor(index / 3) * 320,
+    w: 400,
+    h: 300,
+    z: index + 1,
+    data: {
+      title: doc.title,
+      contentMarkdown: doc.preview,
+    },
+    createdAt: doc.created_at,
+    updatedAt: doc.created_at,
+  }));
+
+  const handleAddBlock = useCallback(async (type: BlockType) => {
     if (!currentBoardId) {
       toast.error('Please select a board first');
       return;
     }
 
-    try {
-      const defaultSize = DEFAULT_BLOCK_SIZES[type];
-      const viewportX = 300;
-      const viewportY = 200;
-      
-      const newBlock = await BlockService.create({
-        id: crypto.randomUUID(),
-        boardId: currentBoardId,
-        type,
-        x: x ?? viewportX,
-        y: y ?? viewportY,
-        w: defaultSize.w,
-        h: defaultSize.h,
-        z: blocks.length + 1,
-        agentAccess: [],
-        data: createDefaultBlockData(type) as any,
-      });
-
-      setBlocks((prev) => [...prev, newBlock]);
-      toast.success(`${type} block added`);
-    } catch (error) {
-      console.error('Failed to add block:', error);
-      toast.error('Failed to add block');
+    const currentBoard = boards.find(b => b.id === currentBoardId);
+    if (!currentBoard?.apiKey) {
+      toast.error('Board has no API Key. Create a new board.');
+      return;
     }
-  }, [currentBoardId, blocks.length]);
+
+    // For now, only doc blocks are supported via API
+    if (type !== 'doc') {
+      toast.info('Only Document blocks are supported in v1. Others coming soon.');
+      return;
+    }
+
+    try {
+      await DocumentService.create(
+        currentBoardId,
+        currentBoard.apiKey,
+        {
+          title: 'New Document',
+          content: '# New Document\n\nStart typing...',
+          author: 'user',
+        }
+      );
+
+      // Reload documents
+      await loadDocuments(currentBoardId);
+      toast.success('Document created');
+    } catch (error) {
+      console.error('Failed to create document:', error);
+      toast.error('Failed to create document');
+    }
+  }, [currentBoardId, boards]);
 
   const currentBoard = boards.find((b) => b.id === currentBoardId);
 
@@ -178,10 +190,13 @@ function App() {
     }
 
     try {
-      const jsonData = await ExportImportService.exportBoard(currentBoardId);
-      // Add agents to export
-      const exportData = JSON.parse(jsonData);
-      exportData.agents = agents;
+      const exportData = {
+        board: currentBoard,
+        documents,
+        agents,
+        version: '2.0.0',
+        exportedAt: new Date().toISOString(),
+      };
       
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -199,7 +214,7 @@ function App() {
       console.error('Failed to export board:', error);
       toast.error('Failed to export board');
     }
-  }, [currentBoardId, agents, currentBoard?.name]);
+  }, [currentBoardId, currentBoard, documents, agents]);
 
   const handleImport = useCallback(async (file: File) => {
     try {
@@ -211,18 +226,14 @@ function App() {
         setAgents(importedData.agents);
       }
       
-      const importedBoard = await ExportImportService.importBoard(text);
+      const newBoard = await BoardsApiService.create({
+        name: `${importedData.board?.name || 'Imported'} (Imported)`,
+        description: importedData.board?.description,
+      });
       
-      // Update board with agents
-      if (importedData.agents) {
-        await BoardService.update(importedBoard.id, {
-          settings: { agents: importedData.agents }
-        });
-      }
-      
-      setBoards((prev) => [importedBoard, ...prev]);
-      setCurrentBoardId(importedBoard.id);
-      toast.success('Board imported');
+      setBoards((prev) => [newBoard, ...prev]);
+      setCurrentBoardId(newBoard.id);
+      toast.success('Board imported! Note: documents not imported (API limitation).');
     } catch (error) {
       console.error('Failed to import board:', error);
       toast.error('Failed to import board. Invalid file format.');
@@ -283,6 +294,7 @@ function App() {
 
             <Toolbar
               boardName={currentBoard.name}
+              boardApiKey={currentBoard.apiKey}
               onAddBlock={handleAddBlock}
               onExport={handleExport}
               onImport={handleImport}
@@ -293,7 +305,7 @@ function App() {
               <Canvas
                 board={currentBoard}
                 blocks={blocks}
-                onBlocksChange={setBlocks}
+                onBlocksChange={() => { /* no-op for now */ }}
                 agents={agents}
                 onAgentsChange={setAgents}
               />
@@ -306,7 +318,7 @@ function App() {
                 Welcome to dockerclaw.app
               </h2>
               <p className="text-gray-500 mb-6">
-                Create a new board to get started with your draggable blocks
+                Create a new board to get started with your documents
               </p>
               <button
                 onClick={() => handleCreateBoard('My First Board')}

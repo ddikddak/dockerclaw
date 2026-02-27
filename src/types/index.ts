@@ -23,6 +23,7 @@ export interface Agent {
 export interface Board {
   id: string;
   name: string;
+  apiKey?: string; // Backend API key for agent authentication
   createdAt: string;
   updatedAt: string;
   canvas: {

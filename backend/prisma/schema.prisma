@@ -2,16 +2,17 @@ generator client {
   provider = "prisma-client-js"
 }
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-// Per desenvolupament local amb SQLite, canviar a:
+// Per producció amb PostgreSQL:
 // datasource db {
-//   provider = "sqlite"
+//   provider = "postgresql"
 //   url      = env("DATABASE_URL")
 // }
+
+// Per desenvolupament local amb SQLite:
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
 
 model Board {
   id          String   @id @default(uuid())

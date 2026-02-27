@@ -1,141 +1,141 @@
 // ============================================
-// IndexedDB Storage Layer - Dexie
+// Database Service - Backend API Only
+// KISS: No IndexedDB, direct API calls
 // ============================================
 
-import Dexie, { type Table } from 'dexie';
-import type { Board, Block } from '@/types';
+import { BoardsApiService, type CreateBoardDTO } from './boardsApi';
+import { DocumentsApiService, type CreateDocumentDTO, type Document, type DocumentPreview } from './documentsApi';
+import type { Board, Block, BlockType, BlockData } from '@/types';
 
-class DockerClawDB extends Dexie {
-  boards!: Table<Board>;
-  blocks!: Table<Block>;
-
-  constructor() {
-    super('dockerclaw-db');
-    
-    this.version(1).stores({
-      boards: 'id, name, createdAt, updatedAt',
-      blocks: 'id, boardId, type, x, y, z, createdAt, updatedAt, deletedAt',
-    });
-  }
-}
-
-export const db = new DockerClawDB();
+// Re-export types for convenience
+export type { Document, DocumentPreview, CreateDocumentDTO };
 
 // ============================================
 // Board Service
 // ============================================
 export class BoardService {
-  static async create(board: Omit<Board, 'createdAt' | 'updatedAt'>): Promise<Board> {
-    const now = new Date().toISOString();
-    const newBoard: Board = {
-      ...board,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await db.boards.add(newBoard);
-    return newBoard;
+  static async create(data: CreateBoardDTO): Promise<Board> {
+    return BoardsApiService.create(data);
   }
 
   static async getById(id: string): Promise<Board | undefined> {
-    return await db.boards.get(id);
+    try {
+      return await BoardsApiService.getById(id);
+    } catch (error) {
+      if ((error as { status?: number }).status === 404) {
+        return undefined;
+      }
+      throw error;
+    }
   }
 
   static async getAll(): Promise<Board[]> {
-    return await db.boards.orderBy('updatedAt').reverse().toArray();
+    return BoardsApiService.getAll();
   }
 
-  static async update(id: string, updates: Partial<Omit<Board, 'id' | 'createdAt'>>): Promise<void> {
-    const now = new Date().toISOString();
-    await db.boards.update(id, { ...updates, updatedAt: now });
+  static async update(id: string, updates: Partial<Omit<Board, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> {
+    // Backend doesn't support update yet, could add PATCH /api/boards/:id
+    console.warn('Board update not implemented in backend yet', id, updates);
   }
 
   static async delete(id: string): Promise<void> {
-    // Delete all blocks associated with this board first
-    await db.blocks.where('boardId').equals(id).delete();
-    await db.boards.delete(id);
+    return BoardsApiService.delete(id);
   }
 }
 
 // ============================================
-// Block Service
+// Document Service (replaces Block Service)
+// Documents are the main content unit in DockerClaw v1
+// ============================================
+export class DocumentService {
+  static async getAll(boardId: string): Promise<DocumentPreview[]> {
+    return DocumentsApiService.getAll(boardId);
+  }
+
+  static async getById(boardId: string, docId: string): Promise<Document | undefined> {
+    try {
+      return await DocumentsApiService.getById(boardId, docId);
+    } catch (error) {
+      if ((error as { status?: number }).status === 404) {
+        return undefined;
+      }
+      throw error;
+    }
+  }
+
+  static async create(boardId: string, apiKey: string, data: CreateDocumentDTO): Promise<Document> {
+    return DocumentsApiService.create(boardId, apiKey, data);
+  }
+}
+
+// ============================================
+// Legacy Block Service - DEPRECATED
+// Kept for compatibility during transition
+// Blocks are being replaced by Documents
 // ============================================
 export class BlockService {
+  static async getByBoardId(boardId: string): Promise<Block[]> {
+    // Convert documents to blocks for backward compatibility
+    const docs = await DocumentService.getAll(boardId);
+    return docs.map(doc => ({
+      id: doc.id,
+      boardId: boardId, // Use the passed boardId
+      type: 'doc' as BlockType,
+      x: 0,
+      y: 0,
+      w: 400,
+      h: 300,
+      data: {
+        title: doc.title,
+        contentMarkdown: doc.preview || '',
+      } as BlockData,
+      createdAt: doc.created_at,
+      updatedAt: doc.created_at,
+    }));
+  }
+
   static async create(block: Omit<Block, 'createdAt' | 'updatedAt'>): Promise<Block> {
+    console.warn('BlockService.create is deprecated, use DocumentService');
     const now = new Date().toISOString();
-    const newBlock: Block = {
+    return {
       ...block,
       createdAt: now,
       updatedAt: now,
     };
-    await db.blocks.add(newBlock);
-    return newBlock;
   }
 
-  static async getById(id: string): Promise<Block | undefined> {
-    return await db.blocks.get(id);
+  static async update(_id: string, _updates?: unknown): Promise<void> {
+    console.warn('BlockService.update is deprecated');
   }
 
-  static async getByBoardId(boardId: string): Promise<Block[]> {
-    return await db.blocks
-      .where('boardId')
-      .equals(boardId)
-      .filter((b) => !b.deletedAt)
-      .toArray();
+  static async delete(_id?: string, _soft?: boolean): Promise<void> {
+    console.warn('BlockService.delete is deprecated');
   }
 
-  static async update(id: string, updates: Partial<Omit<Block, 'id' | 'createdAt'>>): Promise<void> {
-    const now = new Date().toISOString();
-    await db.blocks.update(id, { ...updates, updatedAt: now });
+  static async duplicate(_blockId?: string, _offset?: number): Promise<Block> {
+    throw new Error('BlockService.duplicate is deprecated');
   }
 
-  static async delete(id: string, soft: boolean = true): Promise<void> {
-    if (soft) {
-      const now = new Date().toISOString();
-      await db.blocks.update(id, { deletedAt: now, updatedAt: now });
-    } else {
-      await db.blocks.delete(id);
-    }
-  }
-
-  static async duplicate(blockId: string, offset: number = 20): Promise<Block> {
-    const block = await this.getById(blockId);
-    if (!block) throw new Error('Block not found');
-
-    const newId = crypto.randomUUID();
-    const newBlock: Block = {
-      ...block,
-      id: newId,
-      x: block.x + offset,
-      y: block.y + offset,
-      z: (block.z || 0) + 1,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    await db.blocks.add(newBlock);
-    return newBlock;
-  }
-
-  static async updateZIndex(blockId: string, zIndex: number): Promise<void> {
-    const now = new Date().toISOString();
-    await db.blocks.update(blockId, { z: zIndex, updatedAt: now });
+  static async updateZIndex(_blockId?: string, _zIndex?: number): Promise<void> {
+    console.warn('BlockService.updateZIndex is deprecated');
   }
 }
 
 // ============================================
-// Export/Import Service
+// Export/Import Service - DEPRECATED
+// Kept for compatibility, no-ops for now
 // ============================================
 export class ExportImportService {
   static async exportBoard(boardId: string): Promise<string> {
     const board = await BoardService.getById(boardId);
     if (!board) throw new Error('Board not found');
 
-    const blocks = await BlockService.getByBoardId(boardId);
+    const documents = await DocumentService.getAll(boardId);
 
     const exportData = {
       board,
-      blocks,
-      version: '1.0.0',
+      documents,
+      version: '2.0.0',
       exportedAt: new Date().toISOString(),
     };
 
@@ -144,36 +144,12 @@ export class ExportImportService {
 
   static async importBoard(jsonData: string): Promise<Board> {
     const data = JSON.parse(jsonData);
-    const { board, blocks } = data;
+    const { board } = data;
 
-    // Generate new IDs to avoid conflicts
-    const newBoardId = crypto.randomUUID();
-    const now = new Date().toISOString();
-
-    const newBoard: Board = {
-      ...board,
-      id: newBoardId,
+    const newBoard = await BoardService.create({
       name: `${board.name} (Imported)`,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    await BoardService.create(newBoard);
-
-    // Import blocks with new IDs
-    if (blocks && Array.isArray(blocks)) {
-      for (const block of blocks) {
-        const newBlock: Block = {
-          ...block,
-          id: crypto.randomUUID(),
-          boardId: newBoardId,
-          createdAt: now,
-          updatedAt: now,
-          deletedAt: undefined,
-        };
-        await BlockService.create(newBlock);
-      }
-    }
+      description: board.description,
+    });
 
     return newBoard;
   }
