@@ -30,7 +30,7 @@ create policy "Users see own collaborations"
   on public.board_collaborators for select
   using (
     auth.uid() = user_id
-    OR email = auth.jwt()->>'email'
+    OR lower(email) = lower(auth.jwt()->>'email')
     OR auth.uid() = invited_by
   );
 
@@ -51,8 +51,8 @@ create policy "Owners delete collaborators"
 -- with check: post-check (email still matches, status can be 'accepted')
 create policy "Users accept own invites"
   on public.board_collaborators for update
-  using (email = auth.jwt()->>'email' AND status = 'pending')
-  with check (email = auth.jwt()->>'email');
+  using (lower(email) = lower(auth.jwt()->>'email') AND status = 'pending')
+  with check (lower(email) = lower(auth.jwt()->>'email'));
 
 grant all on public.board_collaborators to authenticated;
 
@@ -75,7 +75,7 @@ create policy "Owner or collaborator reads boards"
       where bc.board_id = id
         AND (
           (bc.user_id = auth.uid() AND bc.status = 'accepted')
-          OR (bc.email = auth.jwt()->>'email' AND bc.status = 'pending')
+          OR (lower(bc.email) = lower(auth.jwt()->>'email') AND bc.status = 'pending')
         )
     )
   );

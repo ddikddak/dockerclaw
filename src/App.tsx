@@ -160,6 +160,7 @@ function App() {
         BoardSharingService.getSharedBoards(),
         BoardSharingService.getPendingInvites(),
       ]);
+      console.log('[app] loadSharedBoards:', shared.length, 'shared,', invites.length, 'pending');
       setSharedBoards(shared.map(s => ({
         board: {
           id: s.board.id,

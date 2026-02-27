@@ -54,15 +54,21 @@ export const BoardSharingService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('board_collaborators')
       .update({
         status: 'accepted',
         user_id: user.id,
       })
-      .eq('id', collaboratorId);
+      .eq('id', collaboratorId)
+      .select();
 
     if (error) throw error;
+    if (!data || data.length === 0) {
+      console.error('[sharing] acceptInvite: update matched 0 rows. collaboratorId:', collaboratorId, 'user:', user.email);
+      throw new Error('Could not accept invite — row not found or permission denied');
+    }
+    console.log('[sharing] invite accepted:', data[0]);
   },
 
   async removeCollaborator(collaboratorId: string): Promise<void> {
