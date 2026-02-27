@@ -120,15 +120,18 @@ export const BoardSharingService = {
       .eq('status', 'accepted');
 
     if (collabError) throw collabError;
+    console.log('[sharing] getSharedBoards: found', collabs?.length ?? 0, 'accepted collabs');
     if (!collabs || collabs.length === 0) return [];
 
     // Fetch the boards
     const boardIds = collabs.map(c => c.board_id);
+    console.log('[sharing] fetching boards:', boardIds);
     const { data: boards, error: boardsError } = await supabase
       .from('boards')
       .select('*')
       .in('id', boardIds);
 
+    console.log('[sharing] boards query returned:', boards?.length ?? 0, 'boards, error:', boardsError);
     if (boardsError) throw boardsError;
 
     return (boards || []).map(board => ({
