@@ -39,6 +39,16 @@ function App() {
   const [isAgentDialogOpen, setIsAgentDialogOpen] = useState(false);
   const prevUserId = useRef<string | null>(null);
 
+  // Warn before leaving when a board is open
+  useEffect(() => {
+    if (!currentBoardId) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [currentBoardId]);
+
   // Determine current board permission
   const getCurrentPermission = useCallback((): BoardPermission => {
     if (!currentBoardId || !user) return 'owner';

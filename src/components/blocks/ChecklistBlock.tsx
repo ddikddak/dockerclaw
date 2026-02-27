@@ -2,7 +2,7 @@
 // Checklist Block - Modern inline editing
 // ============================================
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -21,6 +21,14 @@ export function ChecklistBlock({ data, onUpdate }: ChecklistBlockProps) {
   const [newItemText, setNewItemText] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [draggedItem, setDraggedItem] = useState<ChecklistItem | null>(null);
+
+  // Touch reorder state
+  const touchReorderRef = useRef<{
+    item: ChecklistItem;
+    startY: number;
+    active: boolean;
+    ghostEl: HTMLDivElement | null;
+  } | null>(null);
 
   const handleToggleItem = useCallback(
     (itemId: string) => {
@@ -89,6 +97,67 @@ export function ChecklistBlock({ data, onUpdate }: ChecklistBlockProps) {
     setDraggedItem(null);
   };
 
+  // Touch reorder handlers (initiated from grip handle only)
+  const handleItemTouchStart = useCallback((e: React.TouchEvent, item: ChecklistItem) => {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    e.preventDefault(); // Prevent scroll when grabbing grip handle
+    touchReorderRef.current = { item, startY: touch.clientY, active: false, ghostEl: null };
+    setDraggedItem(item);
+  }, []);
+
+  const handleItemTouchMove = useCallback((e: React.TouchEvent) => {
+    const state = touchReorderRef.current;
+    if (!state || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    e.preventDefault();
+
+    if (!state.active) {
+      state.active = true;
+      const ghost = document.createElement('div');
+      ghost.textContent = state.item.text;
+      ghost.style.cssText = `
+        position: fixed; z-index: 99999; pointer-events: none;
+        background: white; border: 2px solid #3b82f6; border-radius: 8px;
+        padding: 6px 12px; font-size: 13px; color: #1e293b;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15); max-width: 250px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      `;
+      document.body.appendChild(ghost);
+      state.ghostEl = ghost;
+    }
+
+    if (state.ghostEl) {
+      state.ghostEl.style.left = `${touch.clientX - 60}px`;
+      state.ghostEl.style.top = `${touch.clientY - 16}px`;
+    }
+
+    // Find which item row we're over using elementFromPoint
+    if (state.ghostEl) state.ghostEl.style.display = 'none';
+    const elemUnder = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (state.ghostEl) state.ghostEl.style.display = '';
+    const rowEl = elemUnder?.closest('[data-item-index]') as HTMLElement | null;
+    if (rowEl) {
+      const targetIndex = parseInt(rowEl.dataset.itemIndex!, 10);
+      const currentIndex = data.items.findIndex(i => i.id === state.item.id);
+      if (!isNaN(targetIndex) && currentIndex !== -1 && currentIndex !== targetIndex) {
+        const newItems = [...data.items];
+        newItems.splice(currentIndex, 1);
+        newItems.splice(targetIndex, 0, state.item);
+        onUpdate({ items: newItems.map((item, idx) => ({ ...item, order: idx })) });
+      }
+    }
+  }, [data.items, onUpdate]);
+
+  const handleItemTouchEnd = useCallback(() => {
+    const state = touchReorderRef.current;
+    if (state?.ghostEl) {
+      state.ghostEl.remove();
+    }
+    setDraggedItem(null);
+    touchReorderRef.current = null;
+  }, []);
+
   // Sort by order
   const sortedItems = [...data.items].sort((a, b) => a.order - b.order);
   const checkedCount = sortedItems.filter((i) => i.checked).length;
@@ -117,12 +186,16 @@ export function ChecklistBlock({ data, onUpdate }: ChecklistBlockProps) {
             key={item.id}
             item={item}
             index={index}
+            isDragged={draggedItem?.id === item.id}
             onToggle={() => handleToggleItem(item.id)}
             onDelete={() => handleDeleteItem(item.id)}
             onUpdateText={(text) => handleUpdateItemText(item.id, text)}
             onDragStart={() => handleDragStart(item)}
             onDragOver={(e) => handleDragOver(e, index)}
             onDragEnd={handleDragEnd}
+            onGripTouchStart={(e) => handleItemTouchStart(e, item)}
+            onGripTouchMove={handleItemTouchMove}
+            onGripTouchEnd={handleItemTouchEnd}
           />
         ))}
 
@@ -184,22 +257,31 @@ export function ChecklistBlock({ data, onUpdate }: ChecklistBlockProps) {
 interface ChecklistItemRowProps {
   item: ChecklistItem;
   index: number;
+  isDragged: boolean;
   onToggle: () => void;
   onDelete: () => void;
   onUpdateText: (text: string) => void;
   onDragStart: () => void;
   onDragOver: (e: React.DragEvent) => void;
   onDragEnd: () => void;
+  onGripTouchStart: (e: React.TouchEvent) => void;
+  onGripTouchMove: (e: React.TouchEvent) => void;
+  onGripTouchEnd: () => void;
 }
 
 function ChecklistItemRow({
   item,
+  index,
+  isDragged,
   onToggle,
   onDelete,
   onUpdateText,
   onDragStart,
   onDragOver,
   onDragEnd,
+  onGripTouchStart,
+  onGripTouchMove,
+  onGripTouchEnd,
 }: ChecklistItemRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(item.text);
@@ -213,6 +295,7 @@ function ChecklistItemRow({
 
   return (
     <div
+      data-item-index={index}
       draggable
       onDragStart={onDragStart}
       onDragOver={onDragOver}
@@ -220,10 +303,17 @@ function ChecklistItemRow({
       className={`
         flex items-center gap-2 p-2.5 rounded-lg group
         ${item.checked ? 'bg-gray-50' : 'bg-white hover:bg-gray-50'}
+        ${isDragged ? 'opacity-50' : ''}
         cursor-grab active:cursor-grabbing
       `}
     >
-      <GripVertical className="w-4 h-4 text-gray-300 cursor-grab" />
+      <GripVertical
+        className="w-4 h-4 text-gray-300 cursor-grab"
+        style={{ touchAction: 'none' }}
+        onTouchStart={onGripTouchStart}
+        onTouchMove={onGripTouchMove}
+        onTouchEnd={onGripTouchEnd}
+      />
 
       <Checkbox 
         checked={item.checked} 
