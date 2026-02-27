@@ -72,7 +72,7 @@ create policy "Owner or collaborator reads boards"
     auth.uid() = user_id
     OR exists (
       select 1 from public.board_collaborators bc
-      where bc.board_id = id
+      where bc.board_id = boards.id
         AND (
           (bc.user_id = auth.uid() AND bc.status = 'accepted')
           OR (lower(bc.email) = lower(auth.jwt()->>'email') AND bc.status = 'pending')
@@ -90,7 +90,7 @@ create policy "Owner or editor updates boards"
     auth.uid() = user_id
     OR exists (
       select 1 from public.board_collaborators bc
-      where bc.board_id = id
+      where bc.board_id = boards.id
         AND bc.user_id = auth.uid()
         AND bc.status = 'accepted'
         AND bc.role = 'editor'
@@ -124,7 +124,7 @@ create policy "Owner or editor inserts blocks"
     auth.uid() = user_id
     OR exists (
       select 1 from public.board_collaborators bc
-      where bc.board_id = board_id
+      where bc.board_id = blocks.board_id
         AND bc.user_id = auth.uid()
         AND bc.status = 'accepted'
         AND bc.role = 'editor'
