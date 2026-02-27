@@ -32,6 +32,7 @@ import {
   Table,
   Inbox,
   ImageIcon,
+  Heading,
   MoreHorizontal,
   Trash2,
   Edit3,
@@ -59,6 +60,7 @@ const ITEM_TYPE_ICONS: Record<FolderItemType, React.ReactNode> = {
   table: <Table className="w-5 h-5" />,
   inbox: <Inbox className="w-5 h-5" />,
   image: <ImageIcon className="w-5 h-5" />,
+  heading: <Heading className="w-5 h-5" />,
 };
 
 const ITEM_TYPE_COLORS: Record<FolderItemType, string> = {
@@ -69,6 +71,7 @@ const ITEM_TYPE_COLORS: Record<FolderItemType, string> = {
   table: 'bg-gray-100 text-gray-700 border-gray-200',
   inbox: 'bg-orange-100 text-orange-700 border-orange-200',
   image: 'bg-pink-100 text-pink-700 border-pink-200',
+  heading: 'bg-indigo-100 text-indigo-700 border-indigo-200',
 };
 
 export function FolderBlock({ 

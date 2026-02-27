@@ -56,7 +56,7 @@ const COLOR_PRESETS = [
   '#ec4899', '#ffffff', '#000000',
 ];
 
-export function HeadingBlock({ data, onUpdate, isSelected, isEditingStyle, onExitEditStyle }: HeadingBlockProps) {
+export function HeadingBlock({ data, onUpdate, isSelected: _isSelected, isEditingStyle, onExitEditStyle }: HeadingBlockProps) {
   const editRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
 

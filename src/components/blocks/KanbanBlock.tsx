@@ -72,7 +72,6 @@ export function KanbanBlock({
     ghostEl: HTMLDivElement | null;
     preventClick: boolean;
   } | null>(null);
-  const kanbanRef = useRef<HTMLDivElement>(null);
 
   // Ensure columns exist
   const columns = data.columns?.length > 0 ? data.columns : [
