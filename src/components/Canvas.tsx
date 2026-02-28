@@ -142,7 +142,8 @@ function validateConnection(fromType: BlockType, toType: BlockType): ConnectionT
 }
 
 function getBlockTitle(block: Block): string {
-  const title = (block.data as any).title;
+  const data = block.data || {};
+  const title = (data as any).title;
   if (title) return title;
   switch (block.type) {
     case 'doc': return 'Untitled Document';
@@ -153,7 +154,7 @@ function getBlockTitle(block: Block): string {
     case 'text': return 'Note';
     case 'folder': return 'Folder';
     case 'image': return 'Image';
-    case 'heading': return (block.data as any).content?.slice(0, 30) || 'Heading';
+    case 'heading': return (data as any).content?.slice(0, 30) || 'Heading';
     default: return 'Block';
   }
 }
@@ -161,7 +162,7 @@ function getBlockTitle(block: Block): string {
 // Convert a block to a folder item
 function blockToFolderItem(block: Block): FolderItem {
   const now = new Date().toISOString();
-  const data = block.data as any;
+  const data = (block.data as any) || {};
   
   let preview = '';
   switch (block.type) {
@@ -235,13 +236,14 @@ const FullScreenBlockView = memo(function FullScreenBlockView({
   );
 
   const renderContent = () => {
+    const blockData = block.data || {};
     switch (block.type) {
       case 'doc':
-        return <DocBlock data={block.data as any} onUpdate={handleUpdate} />;
+        return <DocBlock data={blockData as any} onUpdate={handleUpdate} />;
       case 'kanban':
         return (
           <KanbanBlock
-            data={block.data as any}
+            data={blockData as any}
             onUpdate={handleUpdate}
             connectedBlocks={connectedBlockIds}
             onCardMoveToBlock={(card, targetBlockId) => handleCardMoveBetweenBlocks(block.id, targetBlockId, card)}
@@ -249,13 +251,13 @@ const FullScreenBlockView = memo(function FullScreenBlockView({
           />
         );
       case 'inbox':
-        return <InboxBlock data={block.data as any} onUpdate={handleUpdate} onConvertToTask={handleConvertToTask} onConvertToDoc={handleConvertToDoc} />;
+        return <InboxBlock data={blockData as any} onUpdate={handleUpdate} onConvertToTask={handleConvertToTask} onConvertToDoc={handleConvertToDoc} />;
       case 'checklist':
-        return <ChecklistBlock data={block.data as any} onUpdate={handleUpdate} />;
+        return <ChecklistBlock data={blockData as any} onUpdate={handleUpdate} />;
       case 'table':
         return (
           <TableBlock
-            data={block.data as any}
+            data={blockData as any}
             onUpdate={handleUpdate}
             connectedBlocks={connectedBlockIds}
             onCardMoveToBlock={(card, targetBlockId) => handleCardMoveBetweenBlocks(block.id, targetBlockId, card)}
@@ -263,15 +265,15 @@ const FullScreenBlockView = memo(function FullScreenBlockView({
           />
         );
       case 'text':
-        return <TextBlock data={block.data as any} onUpdate={handleUpdate} />;
+        return <TextBlock data={blockData as any} onUpdate={handleUpdate} />;
       case 'image':
-        return <ImageBlock data={block.data as any} onUpdate={handleUpdate} />;
+        return <ImageBlock data={blockData as any} onUpdate={handleUpdate} />;
       case 'heading':
-        return <HeadingBlock data={block.data as any} onUpdate={handleUpdate} isSelected={selectedBlockId === block.id} />;
+        return <HeadingBlock data={blockData as any} onUpdate={handleUpdate} isSelected={selectedBlockId === block.id} />;
       case 'folder':
         return (
           <FolderBlock
-            data={{ ...(block.data as any), id: block.id }}
+            data={{ ...blockData, id: block.id } as any}
             onUpdate={handleUpdate}
             isDropTarget={dragOverFolderId === block.id}
             onDragOver={() => draggedBlockId && updateDragOverFolderId(block.id)}
@@ -1116,13 +1118,14 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   }, [blocks, handleBlockDataUpdate]);
 
   const renderBlockContent = (block: Block) => {
+    const blockData = block.data || {};
     switch (block.type) {
       case 'doc':
-        return <DocBlock data={block.data as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
+        return <DocBlock data={blockData as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
       case 'kanban':
         return (
           <KanbanBlock
-            data={block.data as any}
+            data={blockData as any}
             onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)}
             connectedBlocks={connections.filter(c => c.fromBlockId === block.id || c.toBlockId === block.id).map(c => c.fromBlockId === block.id ? c.toBlockId : c.fromBlockId)}
             onCardMoveToBlock={(card, targetBlockId) => handleCardMoveBetweenBlocks(block.id, targetBlockId, card)}
@@ -1130,13 +1133,13 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
           />
         );
       case 'inbox':
-        return <InboxBlock data={block.data as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} onConvertToTask={handleConvertToTask} onConvertToDoc={handleConvertToDoc} />;
+        return <InboxBlock data={blockData as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} onConvertToTask={handleConvertToTask} onConvertToDoc={handleConvertToDoc} />;
       case 'checklist':
-        return <ChecklistBlock data={block.data as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
+        return <ChecklistBlock data={blockData as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
       case 'table':
         return (
           <TableBlock
-            data={block.data as any}
+            data={blockData as any}
             onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)}
             connectedBlocks={connections.filter(c => c.fromBlockId === block.id || c.toBlockId === block.id).map(c => c.fromBlockId === block.id ? c.toBlockId : c.fromBlockId)}
             onCardMoveToBlock={(card, targetBlockId) => handleCardMoveBetweenBlocks(block.id, targetBlockId, card)}
@@ -1144,15 +1147,15 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
           />
         );
       case 'text':
-        return <TextBlock data={block.data as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
+        return <TextBlock data={blockData as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
       case 'image':
-        return <ImageBlock data={block.data as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
+        return <ImageBlock data={blockData as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
       case 'heading':
-        return <HeadingBlock data={block.data as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} isSelected={selectedBlockId === block.id} />;
+        return <HeadingBlock data={blockData as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} isSelected={selectedBlockId === block.id} />;
       case 'folder':
         return (
           <FolderBlock
-            data={{ ...(block.data as any), id: block.id }}
+            data={{ ...blockData, id: block.id } as any}
             onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)}
             isDropTarget={dragOverFolderId === block.id}
             onDragOver={() => draggedBlockId && updateDragOverFolderId(block.id)}
