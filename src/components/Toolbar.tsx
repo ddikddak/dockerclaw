@@ -45,9 +45,10 @@ import {
   Crosshair,
   Menu,
 } from 'lucide-react';
-import type { Block, BlockType, BoardPermission, Agent } from '@/types';
+import type { Block, BlockType, BoardPermission, Agent, Board } from '@/types';
 import type { PresenceUser } from '@/services/collaboration';
 import { ShareDialog } from '@/components/ShareDialog';
+import { AgentApiSettings } from '@/components/AgentApiSettings';
 
 interface ToolbarProps {
   boardName: string;
@@ -62,6 +63,8 @@ interface ToolbarProps {
   blocks?: Block[];
   onFocusBlock?: (blockId: string) => void;
   onOpenSidebar?: () => void;
+  boardSettings?: Board['settings'];
+  onUpdateBoardSettings?: (updates: Partial<NonNullable<Board['settings']>>) => Promise<void>;
 }
 
 const BLOCK_TYPES: { type: BlockType; label: string; icon: React.ReactNode; description: string }[] = [
@@ -89,6 +92,8 @@ export function Toolbar({
   blocks = [],
   onFocusBlock,
   onOpenSidebar,
+  boardSettings,
+  onUpdateBoardSettings,
 }: ToolbarProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(boardName);
@@ -357,7 +362,7 @@ export function Toolbar({
                 <Settings className="w-5 h-5" />
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Board Settings</DialogTitle>
               </DialogHeader>
@@ -385,6 +390,13 @@ export function Toolbar({
                     Delete Board
                   </Button>
                 </div>
+                {onUpdateBoardSettings && (
+                  <AgentApiSettings
+                    boardId={boardId}
+                    boardSettings={boardSettings}
+                    onUpdateBoardSettings={onUpdateBoardSettings}
+                  />
+                )}
                 <div className="pt-2">
                   <Button
                     className="w-full"

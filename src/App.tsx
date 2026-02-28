@@ -368,6 +368,23 @@ function App() {
     }
   }, [currentBoardId]);
 
+  const handleUpdateBoardSettings = useCallback(async (updates: Partial<NonNullable<Board['settings']>>) => {
+    if (!currentBoardId) return;
+
+    const allBoards = [...boards, ...sharedBoards.map((shared) => shared.board)];
+    const board = allBoards.find((item) => item.id === currentBoardId);
+    const nextSettings = { ...(board?.settings || {}), ...updates };
+
+    await BoardService.update(currentBoardId, { settings: nextSettings });
+    setBoards((prev) =>
+      prev.map((item) => (
+        item.id === currentBoardId
+          ? { ...item, settings: nextSettings }
+          : item
+      ))
+    );
+  }, [boards, sharedBoards, currentBoardId]);
+
   const handleAddBlock = useCallback(async (type: BlockType, x?: number, y?: number) => {
     if (!currentBoardId) {
       toast.error('Please select a board first');
@@ -509,6 +526,8 @@ function App() {
               blocks={blocks}
               onFocusBlock={(blockId) => setFocusBlockId(blockId)}
               onOpenSidebar={() => setIsSidebarOpen(true)}
+              boardSettings={currentBoard.settings}
+              onUpdateBoardSettings={currentPermission === 'owner' ? handleUpdateBoardSettings : undefined}
             />
             <div className="flex-1 min-h-0">
               <Canvas

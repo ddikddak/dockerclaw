@@ -17,6 +17,17 @@ export interface Agent {
   updatedAt: string;
 }
 
+export interface AgentApiKeyRef {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  permissions: Array<'read' | 'write' | 'delete'>;
+  isActive: boolean;
+  createdAt: string;
+  description?: string;
+  agentId?: string;
+}
+
 // ============================================
 // Board
 // ============================================
@@ -33,6 +44,7 @@ export interface Board {
     futureApiKeyId?: string;
     agents?: Agent[];
     connections?: Connection[];
+    agentApiKeys?: AgentApiKeyRef[];
   };
 }
 
