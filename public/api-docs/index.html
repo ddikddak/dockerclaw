@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DockerClaw Agent API</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; background: #0d1117; color: #c9d1d9; line-height: 1.6; padding: 2rem; max-width: 900px; margin: 0 auto; }
+    h1 { color: #f0f6fc; margin-bottom: 0.5rem; font-size: 1.8rem; }
+    h2 { color: #f0f6fc; margin-top: 2.5rem; margin-bottom: 0.75rem; font-size: 1.3rem; border-bottom: 1px solid #21262d; padding-bottom: 0.5rem; }
+    h3 { color: #e6edf3; margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1.1rem; }
+    p { margin-bottom: 0.75rem; }
+    code { background: #161b22; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; color: #79c0ff; }
+    pre { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 0.75rem 0 1.25rem; font-size: 0.85rem; line-height: 1.5; }
+    pre code { background: none; padding: 0; color: #c9d1d9; }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0 1.25rem; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid #21262d; }
+    th { background: #161b22; color: #f0f6fc; }
+    .badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    .read { background: #1f6feb33; color: #58a6ff; }
+    .write { background: #23863633; color: #3fb950; }
+    .delete { background: #da363333; color: #f85149; }
+    .endpoint { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 0.75rem 1rem; margin: 0.75rem 0; }
+    .endpoint code { color: #3fb950; font-size: 1rem; }
+    .muted { color: #8b949e; }
+    a { color: #58a6ff; }
+    .note { background: #1f6feb15; border-left: 3px solid #1f6feb; padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; }
+  </style>
+</head>
+<body>
+
+<h1>DockerClaw Agent API</h1>
+<p class="muted">REST API for AI agents to interact with DockerClaw boards and blocks.</p>
+
+<h2>Base URL</h2>
+<div class="endpoint">
+  <code>POST https://blendizvcpgdxiedjvqk.supabase.co/functions/v1/agent-execute</code>
+</div>
+
+<h2>Authentication</h2>
+<p>All requests require an API key passed via the <code>X-API-Key</code> header.</p>
+<pre><code>curl -X POST $BASE_URL \
+  -H "X-API-Key: dc_agent_YOUR_KEY_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "list_boards"}'</code></pre>
+
+<p>API keys are created from the DockerClaw UI under Board Settings &gt; Agent API. Keys are user-scoped and grant access to all boards owned by that user.</p>
+
+<h2>Request Format</h2>
+<p>Every request is a <code>POST</code> with a JSON body containing:</p>
+<table>
+  <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+  <tr><td><code>action</code></td><td>string</td><td>Yes</td><td>The action to perform</td></tr>
+  <tr><td><code>board_id</code></td><td>string (UUID)</td><td>For block actions</td><td>Target board ID</td></tr>
+  <tr><td><code>params</code></td><td>object</td><td>No</td><td>Action-specific parameters</td></tr>
+</table>
+
+<h2>Actions</h2>
+
+<h3>list_boards <span class="badge read">read</span></h3>
+<p>Returns all boards owned by the authenticated user.</p>
+<pre><code>{
+  "action": "list_boards"
+}</code></pre>
+<p>Response:</p>
+<pre><code>{
+  "success": true,
+  "action": "list_boards",
+  "count": 2,
+  "boards": [
+    {
+      "id": "d2fc9f7c-...",
+      "name": "My Board",
+      "created_at": "2026-02-27T15:32:31.201+00:00",
+      "updated_at": "2026-03-02T13:10:12.135+00:00",
+      "settings": { ... }
+    }
+  ]
+}</code></pre>
+
+<h3>list_blocks <span class="badge read">read</span></h3>
+<p>Returns all blocks on a board. Requires <code>board_id</code>.</p>
+<pre><code>{
+  "action": "list_blocks",
+  "board_id": "BOARD_UUID",
+  "params": {
+    "type": "doc",
+    "include_deleted": false
+  }
+}</code></pre>
+<table>
+  <tr><th>Param</th><th>Type</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>type</code></td><td>string</td><td>all</td><td>Filter by block type</td></tr>
+  <tr><td><code>include_deleted</code></td><td>boolean</td><td>false</td><td>Include soft-deleted blocks</td></tr>
+</table>
+
+<h3>get_block <span class="badge read">read</span></h3>
+<p>Get a single block by ID.</p>
+<pre><code>{
+  "action": "get_block",
+  "board_id": "BOARD_UUID",
+  "params": {
+    "block_id": "BLOCK_UUID"
+  }
+}</code></pre>
+
+<h3>create_block <span class="badge write">write</span></h3>
+<p>Create a new block on a board.</p>
+<pre><code>{
+  "action": "create_block",
+  "board_id": "BOARD_UUID",
+  "params": {
+    "type": "doc",
+    "title": "Meeting Notes",
+    "content": "# Agenda\n- Item 1\n- Item 2",
+    "x": 200,
+    "y": 150,
+    "tags": ["meeting", "weekly"]
+  }
+}</code></pre>
+<table>
+  <tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+  <tr><td><code>type</code></td><td>string</td><td>Yes</td><td>Block type (see types below)</td></tr>
+  <tr><td><code>title</code></td><td>string</td><td>No</td><td>Block title (maps to <code>data.title</code> or <code>data.content</code> for text/heading)</td></tr>
+  <tr><td><code>content</code></td><td>string</td><td>No</td><td>Block content (maps to <code>data.contentMarkdown</code> for doc blocks)</td></tr>
+  <tr><td><code>x</code>, <code>y</code></td><td>number</td><td>No</td><td>Position on canvas (default: 100, 100)</td></tr>
+  <tr><td><code>w</code>, <code>h</code></td><td>number</td><td>No</td><td>Size (defaults per type)</td></tr>
+  <tr><td><code>tags</code></td><td>string[]</td><td>No</td><td>Tags (doc blocks only)</td></tr>
+  <tr><td><code>data</code></td><td>object</td><td>No</td><td>Raw data object merged into block data</td></tr>
+</table>
+
+<h3>update_block <span class="badge write">write</span></h3>
+<p>Update an existing block. Fields are merged, not replaced.</p>
+<pre><code>{
+  "action": "update_block",
+  "board_id": "BOARD_UUID",
+  "params": {
+    "block_id": "BLOCK_UUID",
+    "title": "Updated Title",
+    "content": "New paragraph to append",
+    "append": true,
+    "x": 300,
+    "y": 200
+  }
+}</code></pre>
+<table>
+  <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+  <tr><td><code>block_id</code></td><td>string</td><td>Required. Block to update.</td></tr>
+  <tr><td><code>title</code></td><td>string</td><td>Update the title</td></tr>
+  <tr><td><code>content</code></td><td>string</td><td>Update content (<code>contentMarkdown</code> for docs)</td></tr>
+  <tr><td><code>append</code></td><td>boolean</td><td>If true, append content instead of replacing (doc blocks)</td></tr>
+  <tr><td><code>x</code>, <code>y</code>, <code>w</code>, <code>h</code>, <code>z</code></td><td>number</td><td>Update position/size/layer</td></tr>
+  <tr><td><code>locked</code></td><td>boolean</td><td>Lock/unlock the block</td></tr>
+  <tr><td><code>tags</code></td><td>string[]</td><td>Replace tags (doc blocks)</td></tr>
+  <tr><td><code>data</code></td><td>object</td><td>Merge into block data</td></tr>
+</table>
+
+<h4>Checklist operations</h4>
+<p>For checklist blocks, use <code>checklist_action</code>:</p>
+<pre><code>// Add item
+{ "block_id": "...", "checklist_action": "add", "text": "Buy groceries" }
+
+// Toggle item (by text match)
+{ "block_id": "...", "checklist_action": "toggle", "text": "Buy groceries" }
+
+// Check/uncheck by ID
+{ "block_id": "...", "checklist_action": "check", "item_id": "ITEM_UUID" }
+
+// Rename item
+{ "block_id": "...", "checklist_action": "rename", "text": "Old name", "new_text": "New name" }
+
+// Remove item
+{ "block_id": "...", "checklist_action": "remove", "text": "Buy groceries" }</code></pre>
+<p>Valid <code>checklist_action</code> values: <code>add</code>, <code>check</code>, <code>uncheck</code>, <code>toggle</code>, <code>remove</code>, <code>rename</code></p>
+
+<h3>delete_block <span class="badge delete">delete</span></h3>
+<p>Soft-delete (move to trash) or permanently delete a block.</p>
+<pre><code>{
+  "action": "delete_block",
+  "board_id": "BOARD_UUID",
+  "params": {
+    "block_id": "BLOCK_UUID",
+    "permanent": false
+  }
+}</code></pre>
+
+<h2>Block Types</h2>
+<table>
+  <tr><th>Type</th><th>Default Size</th><th>Description</th></tr>
+  <tr><td><code>doc</code></td><td>400x500</td><td>Rich document with markdown content, title, and tags</td></tr>
+  <tr><td><code>text</code></td><td>300x150</td><td>Simple text note</td></tr>
+  <tr><td><code>heading</code></td><td>400x80</td><td>Large heading text (chromeless)</td></tr>
+  <tr><td><code>kanban</code></td><td>800x500</td><td>Kanban board with columns and cards</td></tr>
+  <tr><td><code>checklist</code></td><td>350x400</td><td>Todo list with checkable items</td></tr>
+  <tr><td><code>table</code></td><td>600x400</td><td>Spreadsheet-style table</td></tr>
+  <tr><td><code>inbox</code></td><td>400x500</td><td>Inbox/message list</td></tr>
+  <tr><td><code>folder</code></td><td>400x400</td><td>Container that groups other blocks</td></tr>
+  <tr><td><code>image</code></td><td>400x300</td><td>Image block</td></tr>
+</table>
+
+<h2>Permissions</h2>
+<p>API keys have granular permissions:</p>
+<table>
+  <tr><th>Permission</th><th>Actions</th></tr>
+  <tr><td><span class="badge read">read</span></td><td><code>list_boards</code>, <code>list_blocks</code>, <code>get_block</code></td></tr>
+  <tr><td><span class="badge write">write</span></td><td><code>create_block</code>, <code>update_block</code></td></tr>
+  <tr><td><span class="badge delete">delete</span></td><td><code>delete_block</code></td></tr>
+</table>
+
+<h2>Error Responses</h2>
+<pre><code>// 400 Bad Request
+{ "error": "Missing required field: board_id" }
+
+// 401 Unauthorized
+{ "error": "Invalid or inactive API key" }
+
+// 403 Forbidden
+{ "error": "API key does not have write permission" }
+
+// 404 Not Found
+{ "error": "Block not found" }
+
+// 409 Conflict
+{ "error": "Block is deleted. Restore before updating." }
+
+// 500 Internal Server Error
+{ "error": "Failed to create block", "details": "..." }</code></pre>
+
+<h2>Full Example</h2>
+<pre><code># 1. List your boards
+curl -X POST https://blendizvcpgdxiedjvqk.supabase.co/functions/v1/agent-execute \
+  -H "X-API-Key: dc_agent_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "list_boards"}'
+
+# 2. List blocks on a board
+curl -X POST https://blendizvcpgdxiedjvqk.supabase.co/functions/v1/agent-execute \
+  -H "X-API-Key: dc_agent_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "list_blocks",
+    "board_id": "BOARD_UUID"
+  }'
+
+# 3. Create a doc block
+curl -X POST https://blendizvcpgdxiedjvqk.supabase.co/functions/v1/agent-execute \
+  -H "X-API-Key: dc_agent_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "create_block",
+    "board_id": "BOARD_UUID",
+    "params": {
+      "type": "doc",
+      "title": "Agent Report",
+      "content": "# Summary\nGenerated by AI agent.",
+      "x": 500,
+      "y": 200
+    }
+  }'
+
+# 4. Add a checklist item
+curl -X POST https://blendizvcpgdxiedjvqk.supabase.co/functions/v1/agent-execute \
+  -H "X-API-Key: dc_agent_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "update_block",
+    "board_id": "BOARD_UUID",
+    "params": {
+      "block_id": "CHECKLIST_BLOCK_UUID",
+      "checklist_action": "add",
+      "text": "Review pull request"
+    }
+  }'</code></pre>
+
+<div class="note">
+  <strong>Rate limits:</strong> API keys are subject to Supabase Edge Function limits. The <code>last_used_at</code> timestamp is updated on each request.
+</div>
+
+</body>
+</html>
