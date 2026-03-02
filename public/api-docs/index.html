@@ -186,19 +186,27 @@
 }</code></pre>
 
 <h3>clear_board <span class="badge write">write</span></h3>
-<p>Permanently delete <strong>all</strong> blocks on a board. Use with caution.</p>
+<p>Soft-delete all blocks on a board (moves to trash). Pass <code>permanent: true</code> to hard-delete.</p>
 <pre><code>{
   "action": "clear_board",
-  "board_id": "BOARD_UUID"
+  "board_id": "BOARD_UUID",
+  "params": {
+    "permanent": false
+  }
 }</code></pre>
+<table>
+  <tr><th>Param</th><th>Type</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>permanent</code></td><td>boolean</td><td>false</td><td>If true, permanently deletes blocks. If false, soft-deletes (sets <code>deleted_at</code>).</td></tr>
+</table>
 <p>Response:</p>
 <pre><code>{
   "success": true,
   "action": "clear_board",
-  "deleted_count": 13
+  "deleted_count": 13,
+  "permanent": false
 }</code></pre>
 <div class="note">
-  <strong>Warning:</strong> This action is irreversible. All blocks on the board will be permanently deleted (not soft-deleted).
+  <strong>Note:</strong> Soft-delete (default) syncs to connected clients via realtime. Use <code>permanent: true</code> only when you need irreversible deletion.
 </div>
 
 <h2>Block Types</h2>
