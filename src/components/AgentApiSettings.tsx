@@ -105,30 +105,57 @@ export function AgentApiSettings({ boardId, boardSettings, onUpdateBoardSettings
       toast.error('Supabase is not configured');
       return;
     }
-
-    setCreating(true);
-    const { data, error } = await supabase.functions.invoke('agent-generate-key', {
-      body: {
-        board_id: boardId,
-        name: agentName.trim(),
-        permissions,
-        description: description.trim() || null,
-      },
-    });
-
-    if (error) {
-      toast.error(error.message ?? 'Failed to generate API key');
-      setCreating(false);
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+    if (!supabaseUrl || !supabaseAnonKey) {
+      toast.error('Missing Supabase configuration');
       return;
     }
 
-    setCreatedKey(data.key);
-    setAgentName('');
-    setDescription('');
-    setPermissions(['read', 'write']);
-    toast.success('Agent API key created');
-    await loadKeys();
-    setCreating(false);
+    // Refresh session to ensure valid JWT
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    const token = refreshData.session?.access_token;
+    if (refreshError || !token) {
+      toast.error('You need to be signed in to create API keys');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/agent-generate-key`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          apikey: supabaseAnonKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          board_id: boardId,
+          name: agentName.trim(),
+          permissions,
+          description: description.trim() || null,
+        }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        toast.error(payload?.error ?? 'Failed to generate API key');
+        setCreating(false);
+        return;
+      }
+
+      setCreatedKey(payload.key);
+      setAgentName('');
+      setDescription('');
+      setPermissions(['read', 'write']);
+      toast.success('Agent API key created');
+      await loadKeys();
+    } catch (err) {
+      toast.error('Failed to create API key');
+      console.error('agent-generate-key error:', err);
+    } finally {
+      setCreating(false);
+    }
   };
 
   const handleToggleKeyActive = async (row: AgentApiRow) => {
