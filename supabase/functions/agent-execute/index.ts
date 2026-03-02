@@ -15,7 +15,7 @@ const corsHeaders = {
 
 type AgentPermission = 'read' | 'write' | 'delete';
 type BlockType = 'doc' | 'text' | 'kanban' | 'checklist' | 'table' | 'inbox' | 'folder' | 'heading' | 'image';
-type ExecuteAction = 'list_boards' | 'list_blocks' | 'get_block' | 'create_block' | 'update_block' | 'delete_block' | 'clear_board';
+type ExecuteAction = 'list_boards' | 'list_blocks' | 'get_block' | 'create_block' | 'update_block' | 'delete_block' | 'clear_board' | 'move_to_folder' | 'move_from_folder';
 
 interface ChecklistItem {
   id: string;
@@ -32,6 +32,8 @@ const actionPermissions: Record<ExecuteAction, AgentPermission> = {
   update_block: 'write',
   delete_block: 'delete',
   clear_board: 'write',
+  move_to_folder: 'write',
+  move_from_folder: 'write',
 };
 
 const defaultSizes: Record<BlockType, { w: number; h: number }> = {
@@ -64,6 +66,38 @@ function isBlockType(value: unknown): value is BlockType {
   return typeof value === 'string' && value in defaultSizes;
 }
 
+const defaultTitles: Record<string, string> = {
+  doc: 'Untitled Document',
+  text: 'Text Note',
+  kanban: 'Kanban Board',
+  checklist: 'Checklist',
+  table: 'Table',
+  inbox: 'Inbox',
+  folder: 'Folder',
+  heading: 'Heading',
+  image: 'Image',
+};
+
+function getBlockTitle(type: string, data: Record<string, unknown>): string {
+  if (typeof data.title === 'string' && data.title.length > 0) return data.title;
+  if (typeof data.content === 'string' && data.content.length > 0) return data.content.slice(0, 60);
+  return defaultTitles[type] || 'Untitled';
+}
+
+function getBlockPreview(type: string, data: Record<string, unknown>): string {
+  switch (type) {
+    case 'doc': return typeof data.contentMarkdown === 'string' ? data.contentMarkdown.slice(0, 100) : 'Empty document';
+    case 'text': return typeof data.content === 'string' ? data.content.slice(0, 100) : 'Empty note';
+    case 'kanban': return `${Array.isArray(data.cards) ? data.cards.length : 0} cards`;
+    case 'checklist': return `${Array.isArray(data.items) ? data.items.length : 0} items`;
+    case 'table': return `${Array.isArray(data.rows) ? data.rows.length : 0} rows`;
+    case 'inbox': return `${Array.isArray(data.items) ? data.items.length : 0} items`;
+    case 'image': return typeof data.fileName === 'string' ? data.fileName : 'Image';
+    case 'heading': return typeof data.content === 'string' ? data.content.slice(0, 100) : 'Empty heading';
+    default: return '';
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -84,7 +118,7 @@ serve(async (req) => {
     const action = body?.action as ExecuteAction | undefined;
     const params = (body?.params ?? {}) as Record<string, unknown>;
 
-    const validActions: ExecuteAction[] = ['list_boards', 'list_blocks', 'get_block', 'create_block', 'update_block', 'delete_block', 'clear_board'];
+    const validActions: ExecuteAction[] = ['list_boards', 'list_blocks', 'get_block', 'create_block', 'update_block', 'delete_block', 'clear_board', 'move_to_folder', 'move_from_folder'];
     if (!action || !validActions.includes(action)) {
       return jsonResponse({ error: `Invalid action. Must be one of: ${validActions.join(', ')}` }, 400);
     }
@@ -428,6 +462,191 @@ serve(async (req) => {
 
       await touchKeyUsage();
       return jsonResponse({ success: true, action, block: updatedBlock });
+    }
+
+    if (action === 'move_to_folder') {
+      const blockId = params?.block_id;
+      const folderId = params?.folder_id;
+      if (typeof blockId !== 'string' || blockId.length === 0) {
+        return jsonResponse({ error: 'params.block_id is required for move_to_folder' }, 400);
+      }
+      if (typeof folderId !== 'string' || folderId.length === 0) {
+        return jsonResponse({ error: 'params.folder_id is required for move_to_folder' }, 400);
+      }
+      if (blockId === folderId) {
+        return jsonResponse({ error: 'Cannot move a block into itself' }, 400);
+      }
+
+      // Fetch both blocks
+      const { data: sourceBlock, error: srcErr } = await supabaseAdmin
+        .from('blocks')
+        .select('*')
+        .eq('id', blockId)
+        .eq('board_id', boardId!)
+        .is('deleted_at', null)
+        .single();
+      if (srcErr || !sourceBlock) {
+        return jsonResponse({ error: 'Source block not found' }, 404);
+      }
+
+      const { data: folderBlock, error: folderErr } = await supabaseAdmin
+        .from('blocks')
+        .select('*')
+        .eq('id', folderId)
+        .eq('board_id', boardId!)
+        .is('deleted_at', null)
+        .single();
+      if (folderErr || !folderBlock) {
+        return jsonResponse({ error: 'Folder block not found' }, 404);
+      }
+      if (folderBlock.type !== 'folder') {
+        return jsonResponse({ error: 'Target block is not a folder' }, 400);
+      }
+
+      // Transform block → FolderItem (server-side, matching Canvas.tsx blockToFolderItem)
+      const blockData = (sourceBlock.data ?? {}) as Record<string, unknown>;
+      const folderItem = {
+        id: crypto.randomUUID(),
+        type: sourceBlock.type,
+        title: getBlockTitle(sourceBlock.type, blockData),
+        preview: getBlockPreview(sourceBlock.type, blockData),
+        data: sourceBlock.data,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+
+      // Append to folder items
+      const folderData = (folderBlock.data ?? {}) as Record<string, unknown>;
+      const existingItems = Array.isArray(folderData.items) ? folderData.items : [];
+      const updatedFolderData = { ...folderData, items: [...existingItems, folderItem] };
+
+      // Update folder + soft-delete source block
+      const { error: updateErr } = await supabaseAdmin
+        .from('blocks')
+        .update({ data: updatedFolderData, updated_at: nowIso })
+        .eq('id', folderId)
+        .eq('board_id', boardId!);
+      if (updateErr) {
+        return jsonResponse({ error: 'Failed to update folder', details: updateErr.message }, 500);
+      }
+
+      const { error: deleteErr } = await supabaseAdmin
+        .from('blocks')
+        .update({ deleted_at: nowIso, updated_at: nowIso })
+        .eq('id', blockId)
+        .eq('board_id', boardId!);
+      if (deleteErr) {
+        return jsonResponse({ error: 'Failed to remove source block', details: deleteErr.message }, 500);
+      }
+
+      await touchKeyUsage();
+      return jsonResponse({
+        success: true,
+        action,
+        folder_id: folderId,
+        moved_block_id: blockId,
+        folder_item_id: folderItem.id,
+        message: `Block moved into folder "${folderData.title || 'Untitled'}"`,
+      });
+    }
+
+    if (action === 'move_from_folder') {
+      const folderId = params?.folder_id;
+      const itemId = params?.item_id;
+      if (typeof folderId !== 'string' || folderId.length === 0) {
+        return jsonResponse({ error: 'params.folder_id is required for move_from_folder' }, 400);
+      }
+      if (typeof itemId !== 'string' || itemId.length === 0) {
+        return jsonResponse({ error: 'params.item_id is required for move_from_folder' }, 400);
+      }
+
+      // Fetch folder
+      const { data: folderBlock, error: folderErr } = await supabaseAdmin
+        .from('blocks')
+        .select('*')
+        .eq('id', folderId)
+        .eq('board_id', boardId!)
+        .is('deleted_at', null)
+        .single();
+      if (folderErr || !folderBlock) {
+        return jsonResponse({ error: 'Folder block not found' }, 404);
+      }
+      if (folderBlock.type !== 'folder') {
+        return jsonResponse({ error: 'Target block is not a folder' }, 400);
+      }
+
+      const folderData = (folderBlock.data ?? {}) as Record<string, unknown>;
+      const items = Array.isArray(folderData.items) ? folderData.items as Array<Record<string, unknown>> : [];
+      const itemIndex = items.findIndex((i) => i.id === itemId);
+      if (itemIndex === -1) {
+        return jsonResponse({ error: 'Item not found in folder' }, 404);
+      }
+
+      const item = items[itemIndex];
+      const itemType = typeof item.type === 'string' ? item.type : 'text';
+
+      // Position: next to the folder, or use provided coords
+      const x = typeof params?.x === 'number' ? params.x : (folderBlock.x + folderBlock.w + 40);
+      const y = typeof params?.y === 'number' ? params.y : folderBlock.y;
+      const size = defaultSizes[itemType as BlockType] || { w: 300, h: 200 };
+      const w = typeof params?.w === 'number' ? params.w : size.w;
+      const h = typeof params?.h === 'number' ? params.h : size.h;
+
+      // Get max z
+      const { data: maxZData } = await supabaseAdmin
+        .from('blocks')
+        .select('z')
+        .eq('board_id', boardId!)
+        .order('z', { ascending: false })
+        .limit(1)
+        .single();
+      const newZ = (maxZData?.z || 0) + 1;
+
+      // Create new block from folder item data
+      const { data: newBlock, error: createErr } = await supabaseAdmin
+        .from('blocks')
+        .insert({
+          id: crypto.randomUUID(),
+          user_id: keyData.user_id,
+          board_id: boardId!,
+          type: itemType,
+          x,
+          y,
+          w,
+          h,
+          z: newZ,
+          data: item.data ?? {},
+          created_at: nowIso,
+          updated_at: nowIso,
+        })
+        .select()
+        .single();
+
+      if (createErr) {
+        return jsonResponse({ error: 'Failed to create block from folder item', details: createErr.message }, 500);
+      }
+
+      // Remove item from folder
+      const updatedItems = items.filter((_, idx) => idx !== itemIndex);
+      const updatedFolderData = { ...folderData, items: updatedItems };
+      const { error: updateErr } = await supabaseAdmin
+        .from('blocks')
+        .update({ data: updatedFolderData, updated_at: nowIso })
+        .eq('id', folderId)
+        .eq('board_id', boardId!);
+      if (updateErr) {
+        return jsonResponse({ error: 'Failed to update folder', details: updateErr.message }, 500);
+      }
+
+      await touchKeyUsage();
+      return jsonResponse({
+        success: true,
+        action,
+        folder_id: folderId,
+        removed_item_id: itemId,
+        block: newBlock,
+        message: `Item extracted from folder as new ${itemType} block`,
+      });
     }
 
     if (action === 'delete_block') {

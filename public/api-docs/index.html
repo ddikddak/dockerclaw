@@ -209,6 +209,66 @@
   <strong>Note:</strong> Soft-delete (default) syncs to connected clients via realtime. Use <code>permanent: true</code> only when you need irreversible deletion.
 </div>
 
+<h3>move_to_folder <span class="badge write">write</span></h3>
+<p>Move a block into a folder. The block data is embedded in the folder and the original block is removed from the canvas. No need to read or re-send block data — just pass IDs.</p>
+<pre><code>{
+  "action": "move_to_folder",
+  "board_id": "BOARD_UUID",
+  "params": {
+    "block_id": "BLOCK_UUID",
+    "folder_id": "FOLDER_UUID"
+  }
+}</code></pre>
+<table>
+  <tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+  <tr><td><code>block_id</code></td><td>string</td><td>Yes</td><td>ID of the block to move</td></tr>
+  <tr><td><code>folder_id</code></td><td>string</td><td>Yes</td><td>ID of the target folder block</td></tr>
+</table>
+<p>Response:</p>
+<pre><code>{
+  "success": true,
+  "action": "move_to_folder",
+  "folder_id": "FOLDER_UUID",
+  "moved_block_id": "BLOCK_UUID",
+  "folder_item_id": "NEW_ITEM_UUID",
+  "message": "Block moved into folder \"Sprint 14\""
+}</code></pre>
+<div class="note">
+  <strong>Token-efficient:</strong> The server reads the block data and transforms it into a folder item automatically. AI agents only need to send two IDs.
+</div>
+
+<h3>move_from_folder <span class="badge write">write</span></h3>
+<p>Extract an item from a folder back onto the canvas as a standalone block. Pass the folder ID and item ID — the server handles creating the block and removing the item.</p>
+<pre><code>{
+  "action": "move_from_folder",
+  "board_id": "BOARD_UUID",
+  "params": {
+    "folder_id": "FOLDER_UUID",
+    "item_id": "ITEM_UUID",
+    "x": 500,
+    "y": 200
+  }
+}</code></pre>
+<table>
+  <tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+  <tr><td><code>folder_id</code></td><td>string</td><td>Yes</td><td>ID of the folder containing the item</td></tr>
+  <tr><td><code>item_id</code></td><td>string</td><td>Yes</td><td>ID of the item inside the folder</td></tr>
+  <tr><td><code>x</code>, <code>y</code></td><td>number</td><td>No</td><td>Position on canvas (default: next to folder)</td></tr>
+  <tr><td><code>w</code>, <code>h</code></td><td>number</td><td>No</td><td>Size (default: type-specific defaults)</td></tr>
+</table>
+<p>Response:</p>
+<pre><code>{
+  "success": true,
+  "action": "move_from_folder",
+  "folder_id": "FOLDER_UUID",
+  "removed_item_id": "ITEM_UUID",
+  "block": { ... },
+  "message": "Item extracted from folder as new kanban block"
+}</code></pre>
+<div class="note">
+  <strong>Tip:</strong> To list items in a folder, use <code>get_block</code> on the folder — items are in <code>block.data.items</code> with their <code>id</code>, <code>type</code>, <code>title</code>, and <code>preview</code>.
+</div>
+
 <h2>Block Types</h2>
 <table>
   <tr><th>Type</th><th>Default Size</th><th>Description</th></tr>
@@ -228,7 +288,7 @@
 <table>
   <tr><th>Permission</th><th>Actions</th></tr>
   <tr><td><span class="badge read">read</span></td><td><code>list_boards</code>, <code>list_blocks</code>, <code>get_block</code></td></tr>
-  <tr><td><span class="badge write">write</span></td><td><code>create_block</code>, <code>update_block</code>, <code>clear_board</code></td></tr>
+  <tr><td><span class="badge write">write</span></td><td><code>create_block</code>, <code>update_block</code>, <code>clear_board</code>, <code>move_to_folder</code>, <code>move_from_folder</code></td></tr>
   <tr><td><span class="badge delete">delete</span></td><td><code>delete_block</code></td></tr>
 </table>
 
