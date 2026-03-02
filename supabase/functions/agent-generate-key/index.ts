@@ -97,21 +97,6 @@ serve(async (req) => {
       );
     }
 
-    // Verify user owns the board
-    const { data: board, error: boardError } = await supabaseAdmin
-      .from('boards')
-      .select('id')
-      .eq('id', board_id)
-      .eq('user_id', user.id)
-      .single();
-
-    if (boardError || !board) {
-      return new Response(
-        JSON.stringify({ error: 'Board not found or access denied' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // Generate key
     const apiKey = generateApiKey();
     const keyHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(apiKey));
