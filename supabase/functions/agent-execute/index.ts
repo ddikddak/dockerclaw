@@ -15,7 +15,7 @@ const corsHeaders = {
 
 type AgentPermission = 'read' | 'write' | 'delete';
 type BlockType = 'doc' | 'text' | 'kanban' | 'checklist' | 'table' | 'inbox' | 'folder' | 'heading' | 'image';
-type ExecuteAction = 'list_boards' | 'list_blocks' | 'get_block' | 'create_block' | 'update_block' | 'delete_block';
+type ExecuteAction = 'list_boards' | 'list_blocks' | 'get_block' | 'create_block' | 'update_block' | 'delete_block' | 'clear_board';
 
 interface ChecklistItem {
   id: string;
@@ -31,6 +31,7 @@ const actionPermissions: Record<ExecuteAction, AgentPermission> = {
   create_block: 'write',
   update_block: 'write',
   delete_block: 'delete',
+  clear_board: 'write',
 };
 
 const defaultSizes: Record<BlockType, { w: number; h: number }> = {
@@ -83,7 +84,7 @@ serve(async (req) => {
     const action = body?.action as ExecuteAction | undefined;
     const params = (body?.params ?? {}) as Record<string, unknown>;
 
-    const validActions: ExecuteAction[] = ['list_boards', 'list_blocks', 'get_block', 'create_block', 'update_block', 'delete_block'];
+    const validActions: ExecuteAction[] = ['list_boards', 'list_blocks', 'get_block', 'create_block', 'update_block', 'delete_block', 'clear_board'];
     if (!action || !validActions.includes(action)) {
       return jsonResponse({ error: `Invalid action. Must be one of: ${validActions.join(', ')}` }, 400);
     }
@@ -137,6 +138,22 @@ serve(async (req) => {
 
       await touchKeyUsage();
       return jsonResponse({ success: true, action, count: boards?.length ?? 0, boards: boards ?? [] });
+    }
+
+    // ---- clear_board: permanently delete all blocks on a board ----
+    if (action === 'clear_board') {
+      const { data: deleted, error: clearError } = await supabaseAdmin
+        .from('blocks')
+        .delete()
+        .eq('board_id', boardId!)
+        .select('id');
+
+      if (clearError) {
+        return jsonResponse({ error: 'Failed to clear board', details: clearError.message }, 500);
+      }
+
+      await touchKeyUsage();
+      return jsonResponse({ success: true, action, deleted_count: deleted?.length ?? 0 });
     }
 
     // ---- Block operations below — boardId is guaranteed non-empty ----
