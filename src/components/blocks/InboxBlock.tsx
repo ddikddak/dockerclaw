@@ -85,8 +85,9 @@ export function InboxBlock({ data, onUpdate, onConvertToTask, onConvertToDoc }: 
     [onConvertToDoc, handleArchiveItem]
   );
 
-  const openItems = data.items.filter((i) => i.status === 'open');
-  const archivedItems = data.items.filter((i) => i.status === 'archived');
+  const items = data.items || [];
+  const openItems = items.filter((i) => i.status === 'open');
+  const archivedItems = items.filter((i) => i.status === 'archived');
   const [showArchived, setShowArchived] = useState(false);
 
   return (
