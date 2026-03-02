@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -57,14 +57,11 @@ export function AgentApiSettings({ boardId, boardSettings, onUpdateBoardSettings
     [agentName, permissions]
   );
 
-  const syncSettingsKeys = useCallback(async (rows: AgentApiRow[]) => {
-    const mapped = rows.map(toSettingsRef);
-    const existing = boardSettings?.agentApiKeys ?? [];
-    const unchanged = JSON.stringify(existing) === JSON.stringify(mapped);
-    if (!unchanged) {
-      await onUpdateBoardSettings({ agentApiKeys: mapped });
-    }
-  }, [boardSettings?.agentApiKeys, onUpdateBoardSettings]);
+  // Use refs to break the dependency cycle
+  const boardSettingsRef = useRef(boardSettings);
+  boardSettingsRef.current = boardSettings;
+  const onUpdateRef = useRef(onUpdateBoardSettings);
+  onUpdateRef.current = onUpdateBoardSettings;
 
   const loadKeys = useCallback(async () => {
     if (!supabase) return;
@@ -83,9 +80,16 @@ export function AgentApiSettings({ boardId, boardSettings, onUpdateBoardSettings
 
     const rows = (data ?? []) as AgentApiRow[];
     setApiKeys(rows);
-    await syncSettingsKeys(rows);
+
+    // Sync to board settings without causing re-render loop
+    const mapped = rows.map(toSettingsRef);
+    const existing = boardSettingsRef.current?.agentApiKeys ?? [];
+    if (JSON.stringify(existing) !== JSON.stringify(mapped)) {
+      await onUpdateRef.current({ agentApiKeys: mapped });
+    }
+
     setLoading(false);
-  }, [boardId, syncSettingsKeys]);
+  }, [boardId]);
 
   useEffect(() => {
     void loadKeys();
