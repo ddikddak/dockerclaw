@@ -185,6 +185,22 @@
   }
 }</code></pre>
 
+<h3>clear_board <span class="badge write">write</span></h3>
+<p>Permanently delete <strong>all</strong> blocks on a board. Use with caution.</p>
+<pre><code>{
+  "action": "clear_board",
+  "board_id": "BOARD_UUID"
+}</code></pre>
+<p>Response:</p>
+<pre><code>{
+  "success": true,
+  "action": "clear_board",
+  "deleted_count": 13
+}</code></pre>
+<div class="note">
+  <strong>Warning:</strong> This action is irreversible. All blocks on the board will be permanently deleted (not soft-deleted).
+</div>
+
 <h2>Block Types</h2>
 <table>
   <tr><th>Type</th><th>Default Size</th><th>Description</th></tr>
@@ -204,7 +220,7 @@
 <table>
   <tr><th>Permission</th><th>Actions</th></tr>
   <tr><td><span class="badge read">read</span></td><td><code>list_boards</code>, <code>list_blocks</code>, <code>get_block</code></td></tr>
-  <tr><td><span class="badge write">write</span></td><td><code>create_block</code>, <code>update_block</code></td></tr>
+  <tr><td><span class="badge write">write</span></td><td><code>create_block</code>, <code>update_block</code>, <code>clear_board</code></td></tr>
   <tr><td><span class="badge delete">delete</span></td><td><code>delete_block</code></td></tr>
 </table>
 

@@ -17,7 +17,9 @@ interface ChecklistBlockProps {
   isConnecting?: boolean;
 }
 
-export function ChecklistBlock({ data, onUpdate }: ChecklistBlockProps) {
+export function ChecklistBlock({ data: rawData, onUpdate }: ChecklistBlockProps) {
+  // Defensive: ensure items is always an array
+  const data: ChecklistBlockData = { ...rawData, items: rawData.items || [] };
   const [newItemText, setNewItemText] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [draggedItem, setDraggedItem] = useState<ChecklistItem | null>(null);

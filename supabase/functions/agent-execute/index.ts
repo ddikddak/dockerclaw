@@ -140,20 +140,39 @@ serve(async (req) => {
       return jsonResponse({ success: true, action, count: boards?.length ?? 0, boards: boards ?? [] });
     }
 
-    // ---- clear_board: permanently delete all blocks on a board ----
+    // ---- clear_board: soft-delete all blocks on a board ----
     if (action === 'clear_board') {
-      const { data: deleted, error: clearError } = await supabaseAdmin
-        .from('blocks')
-        .delete()
-        .eq('board_id', boardId!)
-        .select('id');
+      const permanent = Boolean(params?.permanent);
 
-      if (clearError) {
-        return jsonResponse({ error: 'Failed to clear board', details: clearError.message }, 500);
+      if (permanent) {
+        const { data: deleted, error: clearError } = await supabaseAdmin
+          .from('blocks')
+          .delete()
+          .eq('board_id', boardId!)
+          .select('id');
+
+        if (clearError) {
+          return jsonResponse({ error: 'Failed to clear board', details: clearError.message }, 500);
+        }
+
+        await touchKeyUsage();
+        return jsonResponse({ success: true, action, deleted_count: deleted?.length ?? 0, permanent: true });
+      } else {
+        // Soft-delete so realtime sync propagates deletedAt to local clients
+        const { data: deleted, error: clearError } = await supabaseAdmin
+          .from('blocks')
+          .update({ deleted_at: nowIso, updated_at: nowIso })
+          .eq('board_id', boardId!)
+          .is('deleted_at', null)
+          .select('id');
+
+        if (clearError) {
+          return jsonResponse({ error: 'Failed to clear board', details: clearError.message }, 500);
+        }
+
+        await touchKeyUsage();
+        return jsonResponse({ success: true, action, deleted_count: deleted?.length ?? 0, permanent: false });
       }
-
-      await touchKeyUsage();
-      return jsonResponse({ success: true, action, deleted_count: deleted?.length ?? 0 });
     }
 
     // ---- Block operations below — boardId is guaranteed non-empty ----

@@ -26,13 +26,19 @@ interface TableBlockProps {
   allBlocks?: Block[];
 }
 
-export function TableBlock({ 
-  data, 
+export function TableBlock({
+  data: rawData,
   onUpdate,
   connectedBlocks = [],
   onCardMoveToBlock,
   allBlocks = []
 }: TableBlockProps) {
+  // Defensive: ensure columns and rows are always arrays
+  const data: TableBlockData = {
+    ...rawData,
+    columns: rawData.columns || [],
+    rows: rawData.rows || [],
+  };
   const [draggedRow, setDraggedRow] = useState<TableRow | null>(null);
 
   const handleAddColumn = useCallback(() => {
