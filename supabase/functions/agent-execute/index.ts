@@ -2,7 +2,7 @@
 // Edge Function: Agent Execute (Unified Agent API)
 // POST /functions/v1/agent-execute
 // Headers: X-API-Key: dc_agent_xxx
-// Body: { board_id, action, params? }
+// Body: { action, board_id?, params? }
 // ============================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -15,7 +15,7 @@ const corsHeaders = {
 
 type AgentPermission = 'read' | 'write' | 'delete';
 type BlockType = 'doc' | 'text' | 'kanban' | 'checklist' | 'table' | 'inbox' | 'folder' | 'heading' | 'image';
-type ExecuteAction = 'list_blocks' | 'get_block' | 'create_block' | 'update_block' | 'delete_block';
+type ExecuteAction = 'list_boards' | 'list_blocks' | 'get_block' | 'create_block' | 'update_block' | 'delete_block';
 
 interface ChecklistItem {
   id: string;
@@ -25,6 +25,7 @@ interface ChecklistItem {
 }
 
 const actionPermissions: Record<ExecuteAction, AgentPermission> = {
+  list_boards: 'read',
   list_blocks: 'read',
   get_block: 'read',
   create_block: 'write',
@@ -78,17 +79,18 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const boardId = body?.board_id;
+    const boardId = body?.board_id as string | undefined;
     const action = body?.action as ExecuteAction | undefined;
     const params = (body?.params ?? {}) as Record<string, unknown>;
 
-    if (typeof boardId !== 'string' || boardId.length === 0) {
-      return jsonResponse({ error: 'Missing required field: board_id' }, 400);
-    }
-
-    const validActions: ExecuteAction[] = ['list_blocks', 'get_block', 'create_block', 'update_block', 'delete_block'];
+    const validActions: ExecuteAction[] = ['list_boards', 'list_blocks', 'get_block', 'create_block', 'update_block', 'delete_block'];
     if (!action || !validActions.includes(action)) {
       return jsonResponse({ error: `Invalid action. Must be one of: ${validActions.join(', ')}` }, 400);
+    }
+
+    // board_id is required for all block operations
+    if (action !== 'list_boards' && (typeof boardId !== 'string' || boardId.length === 0)) {
+      return jsonResponse({ error: 'Missing required field: board_id' }, 400);
     }
 
     const supabaseAdmin = createClient(
@@ -96,15 +98,16 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Validate API key by hash only (user-level key)
     const keyHashHex = await hashApiKey(apiKey);
     const { data: keyData, error: keyError } = await supabaseAdmin
       .from('agent_api_keys')
-      .select('id, user_id, permissions, is_active')
+      .select('id, user_id, board_id, permissions, is_active')
       .eq('key_hash', keyHashHex)
-      .eq('board_id', boardId)
+      .eq('is_active', true)
       .single();
 
-    if (keyError || !keyData || !keyData.is_active) {
+    if (keyError || !keyData) {
       return jsonResponse({ error: 'Invalid or inactive API key' }, 401);
     }
 
@@ -120,6 +123,24 @@ serve(async (req) => {
         .update({ last_used_at: nowIso, updated_at: nowIso })
         .eq('id', keyData.id);
 
+    // ---- list_boards: return all boards owned by the user ----
+    if (action === 'list_boards') {
+      const { data: boards, error: boardsError } = await supabaseAdmin
+        .from('boards')
+        .select('id, name, created_at, updated_at, settings')
+        .eq('user_id', keyData.user_id)
+        .order('updated_at', { ascending: false });
+
+      if (boardsError) {
+        return jsonResponse({ error: 'Failed to list boards', details: boardsError.message }, 500);
+      }
+
+      await touchKeyUsage();
+      return jsonResponse({ success: true, action, count: boards?.length ?? 0, boards: boards ?? [] });
+    }
+
+    // ---- Block operations below — boardId is guaranteed non-empty ----
+
     if (action === 'list_blocks') {
       const includeDeleted = Boolean(params?.include_deleted);
       const typeFilter = params?.type;
@@ -127,7 +148,7 @@ serve(async (req) => {
       let query = supabaseAdmin
         .from('blocks')
         .select('id, type, x, y, w, h, z, locked, agent_access, data, created_at, updated_at, deleted_at')
-        .eq('board_id', boardId)
+        .eq('board_id', boardId!)
         .order('created_at', { ascending: false });
 
       if (!includeDeleted) {
@@ -156,7 +177,7 @@ serve(async (req) => {
         .from('blocks')
         .select('*')
         .eq('id', blockId)
-        .eq('board_id', boardId)
+        .eq('board_id', boardId!)
         .single();
 
       if (getError || !block) {
@@ -185,7 +206,7 @@ serve(async (req) => {
       const { data: maxZData } = await supabaseAdmin
         .from('blocks')
         .select('z')
-        .eq('board_id', boardId)
+        .eq('board_id', boardId!)
         .order('z', { ascending: false })
         .limit(1)
         .single();
@@ -213,7 +234,7 @@ serve(async (req) => {
         .insert({
           id: crypto.randomUUID(),
           user_id: keyData.user_id,
-          board_id: boardId,
+          board_id: boardId!,
           type,
           x,
           y,
@@ -245,7 +266,7 @@ serve(async (req) => {
         .from('blocks')
         .select('id, type, data, deleted_at')
         .eq('id', blockId)
-        .eq('board_id', boardId)
+        .eq('board_id', boardId!)
         .single();
 
       if (fetchError || !currentBlock) {
@@ -361,7 +382,7 @@ serve(async (req) => {
         .from('blocks')
         .update(updatePayload)
         .eq('id', blockId)
-        .eq('board_id', boardId)
+        .eq('board_id', boardId!)
         .select()
         .single();
 
@@ -385,7 +406,7 @@ serve(async (req) => {
           .from('blocks')
           .delete()
           .eq('id', blockId)
-          .eq('board_id', boardId);
+          .eq('board_id', boardId!);
         if (error) {
           return jsonResponse({ error: 'Failed to permanently delete block', details: error.message }, 500);
         }
@@ -394,7 +415,7 @@ serve(async (req) => {
           .from('blocks')
           .update({ deleted_at: nowIso, updated_at: nowIso })
           .eq('id', blockId)
-          .eq('board_id', boardId);
+          .eq('board_id', boardId!);
         if (error) {
           return jsonResponse({ error: 'Failed to soft delete block', details: error.message }, 500);
         }
@@ -417,4 +438,3 @@ serve(async (req) => {
     return jsonResponse({ error: 'Internal server error', details: message }, 500);
   }
 });
-
