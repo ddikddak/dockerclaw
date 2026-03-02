@@ -105,44 +105,24 @@ export function AgentApiSettings({ boardId, boardSettings, onUpdateBoardSettings
       toast.error('Supabase is not configured');
       return;
     }
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
-    if (!supabaseUrl || !supabaseAnonKey) {
-      toast.error('Missing Supabase configuration');
-      return;
-    }
-
-    const { data: authData } = await supabase.auth.getSession();
-    const token = authData.session?.access_token;
-    if (!token) {
-      toast.error('You need to be signed in to create API keys');
-      return;
-    }
 
     setCreating(true);
-    const response = await fetch(`${supabaseUrl}/functions/v1/agent-generate-key`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: supabaseAnonKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    const { data, error } = await supabase.functions.invoke('agent-generate-key', {
+      body: {
         board_id: boardId,
         name: agentName.trim(),
         permissions,
         description: description.trim() || null,
-      }),
+      },
     });
-    const payload = await response.json();
 
-    if (!response.ok) {
-      toast.error(payload?.error ?? 'Failed to generate API key');
+    if (error) {
+      toast.error(error.message ?? 'Failed to generate API key');
       setCreating(false);
       return;
     }
 
-    setCreatedKey(payload.key);
+    setCreatedKey(data.key);
     setAgentName('');
     setDescription('');
     setPermissions(['read', 'write']);
