@@ -34,8 +34,9 @@ create trigger agent_api_keys_updated_at
   before update on public.agent_api_keys
   for each row execute function public.handle_updated_at();
 
--- Grant access for Edge Functions (service_role)
+-- Grant access for Edge Functions (service_role) and authenticated users (RLS still applies)
 grant all on public.agent_api_keys to service_role;
+grant all on public.agent_api_keys to authenticated;
 grant all on public.blocks to service_role;
 grant all on public.boards to service_role;
 

@@ -106,8 +106,9 @@ export function AgentApiSettings({ boardId, boardSettings, onUpdateBoardSettings
       return;
     }
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-    if (!supabaseUrl) {
-      toast.error('Missing VITE_SUPABASE_URL');
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+    if (!supabaseUrl || !supabaseAnonKey) {
+      toast.error('Missing Supabase configuration');
       return;
     }
 
@@ -123,6 +124,7 @@ export function AgentApiSettings({ boardId, boardSettings, onUpdateBoardSettings
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
+        apikey: supabaseAnonKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
