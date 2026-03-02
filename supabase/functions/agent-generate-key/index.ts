@@ -81,27 +81,24 @@ serve(async (req) => {
       );
     }
 
-    // Create client with user's JWT
-    const supabaseClient = createClient(
+    // Use service role client for reliable auth verification and DB operations
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: authHeader },
-        },
-      }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Verify user owns the board
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    // Extract JWT and verify user
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
     if (userError || !user) {
       return new Response(
-        JSON.stringify({ error: 'Invalid token' }),
+        JSON.stringify({ error: 'Invalid token', details: userError?.message }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { data: board, error: boardError } = await supabaseClient
+    // Verify user owns the board
+    const { data: board, error: boardError } = await supabaseAdmin
       .from('boards')
       .select('id')
       .eq('id', board_id)
@@ -124,7 +121,7 @@ serve(async (req) => {
 
     // Store hashed key
     const now = new Date().toISOString();
-    const { data: insertedKey, error: insertError } = await supabaseClient
+    const { data: insertedKey, error: insertError } = await supabaseAdmin
       .from('agent_api_keys')
       .insert({
         board_id,
