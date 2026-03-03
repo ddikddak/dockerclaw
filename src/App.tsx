@@ -15,6 +15,7 @@ import { Toolbar } from '@/components/Toolbar';
 import { Canvas } from '@/components/Canvas';
 import { createDefaultBlockData, DEFAULT_BLOCK_SIZES } from '@/lib/blockDefaults';
 import { mapRemoteBlock } from '@/lib/mappers';
+import { logger } from '@/lib/logger';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
@@ -230,18 +231,11 @@ function App() {
         BoardSharingService.getSharedBoards(),
         BoardSharingService.getPendingInvites(),
       ]);
-      console.log('[app] loadSharedBoards:', shared.length, 'shared,', invites.length, 'pending');
+      logger.info('app', `loadSharedBoards: ${shared.length} shared, ${invites.length} pending`);
       setSharedBoards(shared.map(s => ({
-        board: {
-          id: s.board.id,
-          name: s.board.name,
-          canvas: s.board.canvas,
-          settings: s.board.settings || {},
-          createdAt: s.board.created_at,
-          updatedAt: s.board.updated_at,
-        } as Board,
+        board: s.board,
         collaborator: s.collaborator,
-        ownerId: s.board.user_id as string,
+        ownerId: s.ownerId,
       })));
       setPendingInvites(invites);
     } catch (error) {

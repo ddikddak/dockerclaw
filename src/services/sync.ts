@@ -6,6 +6,7 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { db } from './db';
 import { mapRemoteBoard, mapRemoteBlock, boardToSupabaseRow, blockToSupabaseRow } from '@/lib/mappers';
+import { logger } from '@/lib/logger';
 // Types imported via mappers
 import type { User, RealtimeChannel } from '@supabase/supabase-js';
 
@@ -37,7 +38,7 @@ class SyncService {
 
   start(user: User) {
     this.user = user;
-    console.log('[sync] started for', user.email);
+    logger.info('sync', `started for ${user.email}`);
     this.flushQueue();
     this.pushAllLocal();
     this.subscribeRealtime();
@@ -46,7 +47,7 @@ class SyncService {
   /** Start realtime subscriptions without pushing local data */
   startRealtimeOnly(user: User) {
     this.user = user;
-    console.log('[sync] started realtime-only for', user.email);
+    logger.info('sync', `started realtime-only for ${user.email}`);
     this.subscribeRealtime();
   }
 
@@ -65,10 +66,10 @@ class SyncService {
       await db.blocks.clear();
       await db._syncQueue.clear();
       localStorage.removeItem('dockerclaw_lastSyncedAt');
-      console.log('[sync] cleared local data, pulling fresh from cloud');
+      logger.info('sync', 'cleared local data, pulling fresh from cloud');
       return await this.pullFromCloud();
     } catch (err) {
-      console.warn('[sync] clearLocalAndPullFresh failed:', err);
+      logger.warn('sync', 'clearLocalAndPullFresh failed', err);
       return false;
     }
   }
@@ -110,7 +111,7 @@ class SyncService {
         (payload) => this.handleRealtimeEvent('blocks', payload)
       )
       .subscribe((status) => {
-        console.log('[sync] realtime:', status);
+        logger.debug('sync', `realtime: ${status}`);
       });
   }
 
@@ -133,7 +134,7 @@ class SyncService {
       return;
     }
 
-    console.log(`[sync] realtime ${eventType} on ${table}`, recordId);
+    logger.debug('sync', `realtime ${eventType} on ${table}`, recordId);
 
     if (eventType === 'DELETE' && oldRecord?.id) {
       if (table === 'boards') {
@@ -192,34 +193,34 @@ class SyncService {
     try {
       if (action === 'delete') {
         const { error } = await supabase.from(table).delete().eq('id', recordId).eq('user_id', this.user.id);
-        if (error) { console.error(`[sync] delete ${table}/${recordId}:`, error); return; }
+        if (error) { logger.error('sync', `delete ${table}/${recordId}`, error); return; }
       } else if (table === 'boards') {
         const board = await db.boards.get(recordId);
         if (!board) return;
         const { error } = await supabase.from('boards').upsert(boardToSupabaseRow(board, this.user.id));
-        if (error) { console.error(`[sync] upsert board ${recordId}:`, error); return; }
+        if (error) { logger.error('sync', `upsert board ${recordId}`, error); return; }
       } else {
         const block = await db.blocks.get(recordId);
         if (!block) return;
         // Skip orphaned blocks (no boardId = board was deleted)
         if (!block.boardId) {
-          console.warn(`[sync] skipping orphaned block ${recordId} (no boardId), deleting from local`);
+          logger.warn('sync', `skipping orphaned block ${recordId} (no boardId), deleting from local`);
           await db.blocks.delete(recordId);
           await db._syncQueue.where({ table, recordId }).delete();
           return;
         }
         const { error } = await supabase.from('blocks').upsert(blockToSupabaseRow(block, this.user.id));
-        if (error) { console.error(`[sync] upsert block ${recordId}:`, error); return; }
+        if (error) { logger.error('sync', `upsert block ${recordId}`, error); return; }
       }
 
-      console.log(`[sync] pushed ${table}/${recordId}`);
+      logger.debug('sync', `pushed ${table}/${recordId}`);
 
       // Remove from queue on success
       await db._syncQueue
         .where({ table, recordId })
         .delete();
     } catch (err) {
-      console.warn(`[sync] push failed for ${table}/${recordId}:`, err);
+      logger.warn('sync', `push failed for ${table}/${recordId}`, err);
     }
   }
 
@@ -230,7 +231,7 @@ class SyncService {
 
     try {
       const boards = await db.boards.toArray();
-      console.log(`[sync] pushing ${boards.length} local boards`);
+      logger.info('sync', `pushing ${boards.length} local boards`);
       // Push in parallel batches of 10
       for (let i = 0; i < boards.length; i += 10) {
         await Promise.all(
@@ -239,16 +240,16 @@ class SyncService {
       }
 
       const blocks = await db.blocks.toArray();
-      console.log(`[sync] pushing ${blocks.length} local blocks`);
+      logger.info('sync', `pushing ${blocks.length} local blocks`);
       for (let i = 0; i < blocks.length; i += 10) {
         await Promise.all(
           blocks.slice(i, i + 10).map(block => this.pushRecord('blocks', block.id, 'upsert'))
         );
       }
 
-      console.log('[sync] initial push complete');
+      logger.info('sync', 'initial push complete');
     } catch (err) {
-      console.warn('[sync] pushAllLocal failed:', err);
+      logger.warn('sync', 'pushAllLocal failed', err);
     }
   }
 
@@ -267,7 +268,7 @@ class SyncService {
         );
       }
     } catch (err) {
-      console.warn('[sync] flush queue failed:', err);
+      logger.warn('sync', 'flush queue failed', err);
     } finally {
       this.pushing = false;
     }
@@ -277,14 +278,14 @@ class SyncService {
 
   async pullFromCloud(): Promise<boolean> {
     if (this.pulling || !supabase || !this.user) {
-      console.log('[sync] pull skipped:', { pulling: this.pulling, hasClient: !!supabase, hasUser: !!this.user });
+      logger.debug('sync', 'pull skipped', { pulling: this.pulling, hasClient: !!supabase, hasUser: !!this.user });
       return false;
     }
     this.pulling = true;
 
     try {
       const lastSyncedAt = localStorage.getItem('dockerclaw_lastSyncedAt');
-      console.log('[sync] pulling from cloud, lastSyncedAt:', lastSyncedAt || 'never (full pull)');
+      logger.info('sync', `pulling from cloud, lastSyncedAt: ${lastSyncedAt || 'never (full pull)'}`);
 
       // Pull boards
       let boardsQuery = supabase
@@ -309,7 +310,7 @@ class SyncService {
       if (blocksError) throw blocksError;
 
       const hasChanges = (boards && boards.length > 0) || (blocks && blocks.length > 0);
-      console.log(`[sync] pulled ${boards?.length ?? 0} boards, ${blocks?.length ?? 0} blocks, hasChanges: ${hasChanges}`);
+      logger.info('sync', `pulled ${boards?.length ?? 0} boards, ${blocks?.length ?? 0} blocks`, { hasChanges });
 
       // Merge boards into Dexie (last-write-wins)
       if (boards && boards.length > 0) {
@@ -342,7 +343,7 @@ class SyncService {
 
       return hasChanges;
     } catch (err) {
-      console.warn('[sync] pull failed:', err);
+      logger.warn('sync', 'pull failed', err);
       return false;
     } finally {
       this.pulling = false;

@@ -4,6 +4,7 @@
 // ============================================
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 import type { RealtimeChannel, User } from '@supabase/supabase-js';
 
 // ============================================
@@ -118,7 +119,7 @@ class CollaborationService {
           cursorY: 0,
           selectedBlockId: null,
         });
-        console.log('[collab] joined board', targetBoardId);
+        logger.info('collab', `joined board ${targetBoardId}`);
       }
     });
   }
@@ -134,7 +135,7 @@ class CollaborationService {
       supabase?.removeChannel(this.channel);
       this.channel = null;
     }
-    console.log('[collab] left board');
+    logger.info('collab', 'left board');
   }
 
   isActive(): boolean {

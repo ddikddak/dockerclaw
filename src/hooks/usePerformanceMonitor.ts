@@ -4,6 +4,7 @@
 // ============================================
 
 import { useRef, useEffect } from 'react';
+import { logger } from '@/lib/logger';
 
 const isDev = import.meta.env.DEV;
 
@@ -14,7 +15,7 @@ export function useRenderCount(componentName: string): number {
     countRef.current++;
     
     useEffect(() => {
-      console.log(`[RenderCount] ${componentName}: #${countRef.current}`);
+      logger.debug('RenderCount', `${componentName}: #${countRef.current}`);
     });
   }
   
@@ -61,7 +62,7 @@ export function useWhyDidYouUpdate(
     });
     
     if (Object.keys(changedProps).length > 0) {
-      console.log(`[WhyDidYouUpdate] ${componentName}:`, changedProps);
+      logger.debug('WhyDidYouUpdate', componentName, changedProps);
     }
     
     prevPropsRef.current = props;

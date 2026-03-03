@@ -3,7 +3,9 @@
 // ============================================
 
 import { supabase } from '@/lib/supabase';
-import type { Block, BoardCollaborator, CollaboratorRole } from '@/types';
+import { logger } from '@/lib/logger';
+import { mapRemoteBoard } from '@/lib/mappers';
+import type { Board, Block, BoardCollaborator, CollaboratorRole } from '@/types';
 
 // ============================================
 // Helpers
@@ -65,10 +67,10 @@ export const BoardSharingService = {
 
     if (error) throw error;
     if (!data || data.length === 0) {
-      console.error('[sharing] acceptInvite: update matched 0 rows. collaboratorId:', collaboratorId, 'user:', user.email);
+      logger.error('sharing', `acceptInvite: update matched 0 rows. collaboratorId: ${collaboratorId} user: ${user.email}`);
       throw new Error('Could not accept invite — row not found or permission denied');
     }
-    console.log('[sharing] invite accepted:', data[0]);
+    logger.info('sharing', 'invite accepted', data[0]);
   },
 
   async removeCollaborator(collaboratorId: string): Promise<void> {
@@ -106,7 +108,7 @@ export const BoardSharingService = {
     return (data || []).map(mapRow);
   },
 
-  async getSharedBoards(): Promise<{ board: Record<string, unknown>; collaborator: BoardCollaborator }[]> {
+  async getSharedBoards(): Promise<{ board: Board; ownerId: string; collaborator: BoardCollaborator }[]> {
     if (!supabase) return [];
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -120,22 +122,23 @@ export const BoardSharingService = {
       .eq('status', 'accepted');
 
     if (collabError) throw collabError;
-    console.log('[sharing] getSharedBoards: found', collabs?.length ?? 0, 'accepted collabs');
+    logger.debug('sharing', `getSharedBoards: found ${collabs?.length ?? 0} accepted collabs`);
     if (!collabs || collabs.length === 0) return [];
 
     // Fetch the boards
     const boardIds = collabs.map(c => c.board_id);
-    console.log('[sharing] fetching boards:', boardIds);
+    logger.debug('sharing', 'fetching boards', boardIds);
     const { data: boards, error: boardsError } = await supabase
       .from('boards')
       .select('*')
       .in('id', boardIds);
 
-    console.log('[sharing] boards query returned:', boards?.length ?? 0, 'boards, error:', boardsError);
+    logger.debug('sharing', `boards query returned: ${boards?.length ?? 0} boards`, { boardsError });
     if (boardsError) throw boardsError;
 
     return (boards || []).map(board => ({
-      board,
+      board: mapRemoteBoard(board as Record<string, unknown>),
+      ownerId: (board as Record<string, unknown>).user_id as string,
       collaborator: mapRow(collabs.find(c => c.board_id === board.id)!),
     }));
   },

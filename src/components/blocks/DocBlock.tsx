@@ -2,7 +2,7 @@
 // DocBlock — WYSIWYG rich text editor (Tiptap)
 // ============================================
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   useEditor,
   EditorContent,
@@ -394,12 +394,17 @@ export function DocBlock({ data, onUpdate }: DocBlockProps) {
     [data.tags, onUpdate]
   );
 
-  // Word count from stored markdown (quick heuristic)
-  const wordCount = (data.contentMarkdown || '')
-    .replace(/```[\s\S]*?```/g, '') // strip code blocks
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean).length;
+  // Word count from stored markdown (quick heuristic) — memoised so it only
+  // recomputes when the markdown content actually changes.
+  const wordCount = useMemo(
+    () =>
+      (data.contentMarkdown || '')
+        .replace(/```[\s\S]*?```/g, '') // strip code blocks
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean).length,
+    [data.contentMarkdown]
+  );
 
   return (
     <TooltipProvider>

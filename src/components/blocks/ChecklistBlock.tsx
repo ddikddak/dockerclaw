@@ -2,7 +2,7 @@
 // Checklist Block - Modern inline editing
 // ============================================
 
-import { useState, useCallback, useRef, memo } from 'react';
+import { useState, useCallback, useMemo, useRef, memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -160,8 +160,11 @@ export function ChecklistBlock({ data: rawData, onUpdate }: ChecklistBlockProps)
     touchReorderRef.current = null;
   }, []);
 
-  // Sort by order
-  const sortedItems = [...data.items].sort((a, b) => a.order - b.order);
+  // Sort by order — memoised so it only recomputes when items actually change.
+  const sortedItems = useMemo(
+    () => [...data.items].sort((a, b) => a.order - b.order),
+    [data.items]
+  );
   const checkedCount = sortedItems.filter((i) => i.checked).length;
   const progress = sortedItems.length > 0 ? (checkedCount / sortedItems.length) * 100 : 0;
 

@@ -4,7 +4,7 @@
 // Draggable by default, edit style via menu only
 // ============================================
 
-import { useRef, useCallback, useEffect, useState } from 'react';
+import { useRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { Toggle } from '@/components/ui/toggle';
 import {
   Popover,
@@ -65,7 +65,7 @@ export function HeadingBlock({ data, onUpdate, isSelected: _isSelected, isEditin
   const currentFontFamily = data.fontFamily || FONT_FAMILIES[0].value;
   const currentFontLabel = FONT_FAMILIES.find(f => f.value === currentFontFamily)?.label || 'System';
 
-  const textStyle: React.CSSProperties = {
+  const textStyle = useMemo<React.CSSProperties>(() => ({
     fontSize: currentFontSize,
     fontWeight: data.bold ? 700 : levelDefaults.fontWeight,
     fontStyle: data.italic ? 'italic' : 'normal',
@@ -75,7 +75,7 @@ export function HeadingBlock({ data, onUpdate, isSelected: _isSelected, isEditin
     lineHeight: levelDefaults.lineHeight,
     textAlign: data.align || 'left',
     fontFamily: currentFontFamily,
-  };
+  }), [currentFontSize, data.bold, data.italic, data.underline, data.color, data.align, levelDefaults, currentFontFamily]);
 
   const stopDrag = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
