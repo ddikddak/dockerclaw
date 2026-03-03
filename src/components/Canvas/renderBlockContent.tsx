@@ -70,7 +70,7 @@ export function renderBlockContent(
           onUpdate={handleUpdate}
           connectedBlocks={connectedBlockIds}
           onCardMoveToBlock={(card, targetBlockId) => 
-            onCardMoveBetweenBlocks(block.id, targetBlockId, card)
+            onCardMoveBetweenBlocks(block.id, targetBlockId, card as unknown as { id: string; title?: string; [key: string]: unknown })
           }
           allBlocks={allBlocks}
         />
@@ -96,7 +96,7 @@ export function renderBlockContent(
           onUpdate={handleUpdate}
           connectedBlocks={connectedBlockIds}
           onCardMoveToBlock={(card, targetBlockId) => 
-            onCardMoveBetweenBlocks(block.id, targetBlockId, card)
+            onCardMoveBetweenBlocks(block.id, targetBlockId, card as unknown as { id: string; title?: string; [key: string]: unknown })
           }
           allBlocks={allBlocks}
         />

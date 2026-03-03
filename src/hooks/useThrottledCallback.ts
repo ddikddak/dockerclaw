@@ -50,7 +50,7 @@ export function useThrottledCallback<T extends (...args: Parameters<T>) => Retur
       lastCallRef.current = now;
       
       if (leading) {
-        callbackRef.current(...args);
+        callbackRef.current(...(args as unknown[] as Parameters<T>));
       }
       
       // Set up trailing call if needed
@@ -59,7 +59,7 @@ export function useThrottledCallback<T extends (...args: Parameters<T>) => Retur
           lastCallRef.current = Date.now();
           timeoutRef.current = null;
           if (lastArgsRef.current) {
-            callbackRef.current(...lastArgsRef.current);
+            callbackRef.current(...(lastArgsRef.current as unknown[] as Parameters<T>));
           }
         }, delay);
       }
@@ -73,7 +73,7 @@ export function useThrottledCallback<T extends (...args: Parameters<T>) => Retur
         lastCallRef.current = Date.now();
         timeoutRef.current = null;
         if (lastArgsRef.current) {
-          callbackRef.current(...lastArgsRef.current);
+          callbackRef.current(...(lastArgsRef.current as unknown[] as Parameters<T>));
         }
       }, remaining);
     }
@@ -110,7 +110,7 @@ export function useRafThrottle<T extends (...args: Parameters<T>) => void>(
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null;
       if (lastArgsRef.current) {
-        callbackRef.current(...lastArgsRef.current);
+        callbackRef.current(...(lastArgsRef.current as unknown[] as Parameters<T>));
       }
     });
   }, []) as T;
