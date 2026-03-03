@@ -87,6 +87,17 @@ class SyncService {
     return this.user !== null && isSupabaseConfigured;
   }
 
+  /** Check if error is a Row Level Security policy violation */
+  private isRLSError(error: { code?: string; message?: string }): boolean {
+    // PostgreSQL error code for RLS violation
+    if (error.code === '42501') return true;
+    // Check error message for RLS-related text
+    const msg = (error.message || '').toLowerCase();
+    return msg.includes('row-level security') || 
+           msg.includes('violates row-level security') ||
+           msg.includes('new row violates');
+  }
+
   /** Register a callback for when remote changes are received */
   onRemoteChange(callback: (table: 'boards' | 'blocks') => void) {
     this.onChange = callback;
@@ -193,12 +204,30 @@ class SyncService {
     try {
       if (action === 'delete') {
         const { error } = await supabase.from(table).delete().eq('id', recordId).eq('user_id', this.user.id);
-        if (error) { logger.error('sync', `delete ${table}/${recordId}`, error); return; }
+        if (error) { 
+          // RLS error - skip this record to prevent infinite retry
+          if (this.isRLSError(error)) {
+            logger.warn('sync', `RLS policy blocked delete ${table}/${recordId} - removing from queue`);
+            await db._syncQueue.where({ table, recordId }).delete();
+            return;
+          }
+          logger.error('sync', `delete ${table}/${recordId}`, error); 
+          return; 
+        }
       } else if (table === 'boards') {
         const board = await db.boards.get(recordId);
         if (!board) return;
         const { error } = await supabase.from('boards').upsert(boardToSupabaseRow(board, this.user.id));
-        if (error) { logger.error('sync', `upsert board ${recordId}`, error); return; }
+        if (error) { 
+          // RLS error - board may belong to different user or was created offline
+          if (this.isRLSError(error)) {
+            logger.warn('sync', `RLS policy blocked board ${recordId} - marking as local-only`);
+            await db._syncQueue.where({ table, recordId }).delete();
+            return;
+          }
+          logger.error('sync', `upsert board ${recordId}`, error); 
+          return; 
+        }
       } else {
         const block = await db.blocks.get(recordId);
         if (!block) return;
@@ -210,7 +239,16 @@ class SyncService {
           return;
         }
         const { error } = await supabase.from('blocks').upsert(blockToSupabaseRow(block, this.user.id));
-        if (error) { logger.error('sync', `upsert block ${recordId}`, error); return; }
+        if (error) { 
+          // RLS error - skip this record
+          if (this.isRLSError(error)) {
+            logger.warn('sync', `RLS policy blocked block ${recordId} - removing from queue`);
+            await db._syncQueue.where({ table, recordId }).delete();
+            return;
+          }
+          logger.error('sync', `upsert block ${recordId}`, error); 
+          return; 
+        }
       }
 
       logger.debug('sync', `pushed ${table}/${recordId}`);
