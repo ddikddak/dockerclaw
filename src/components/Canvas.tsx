@@ -1123,7 +1123,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       return;
     }
     const kanbanData = kanbanBlock.data as KanbanBlockData;
-    const firstColumn = kanbanData.columns.sort((a, b) => a.order - b.order)[0];
+    const firstColumn = [...kanbanData.columns].sort((a, b) => a.order - b.order)[0];
     if (!firstColumn) {
       alert('No columns found in Kanban block.');
       return;

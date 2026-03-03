@@ -108,7 +108,7 @@ export function KanbanBlock({
     const remainingColumns = columns.filter(c => c.id !== columnId);
     if (remainingColumns.length === 0) return;
     
-    const firstColumn = remainingColumns.sort((a, b) => a.order - b.order)[0];
+    const firstColumn = [...remainingColumns].sort((a, b) => a.order - b.order)[0];
     const updatedCards = data.cards?.map(card => 
       card.columnId === columnId ? { ...card, columnId: firstColumn.id } : card
     ) || [];
