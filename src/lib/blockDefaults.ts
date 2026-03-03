@@ -15,17 +15,31 @@ import type {
   ImageBlockData,
   HeadingBlockData,
 } from '@/types';
+import { getBlockDefaultSize, getBlockMinSize } from './blockRegistry';
 
+// Re-export from blockRegistry for backward compatibility
 export const DEFAULT_BLOCK_SIZES: Record<BlockType, { w: number; h: number }> = {
-  doc: { w: 400, h: 500 },
-  kanban: { w: 800, h: 500 },
-  inbox: { w: 400, h: 500 },
-  checklist: { w: 350, h: 400 },
-  table: { w: 600, h: 400 },
-  text: { w: 300, h: 150 },
-  folder: { w: 350, h: 450 },
-  image: { w: 400, h: 350 },
-  heading: { w: 400, h: 80 },
+  doc: getBlockDefaultSize('doc'),
+  kanban: getBlockDefaultSize('kanban'),
+  inbox: getBlockDefaultSize('inbox'),
+  checklist: getBlockDefaultSize('checklist'),
+  table: getBlockDefaultSize('table'),
+  text: getBlockDefaultSize('text'),
+  folder: getBlockDefaultSize('folder'),
+  image: getBlockDefaultSize('image'),
+  heading: getBlockDefaultSize('heading'),
+};
+
+export const MIN_BLOCK_SIZES: Record<BlockType, { w: number; h: number }> = {
+  doc: getBlockMinSize('doc'),
+  kanban: getBlockMinSize('kanban'),
+  inbox: getBlockMinSize('inbox'),
+  checklist: getBlockMinSize('checklist'),
+  table: getBlockMinSize('table'),
+  text: getBlockMinSize('text'),
+  folder: getBlockMinSize('folder'),
+  image: getBlockMinSize('image'),
+  heading: getBlockMinSize('heading'),
 };
 
 export function createDefaultDocData(): DocBlockData {

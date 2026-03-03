@@ -20,7 +20,7 @@ interface UseBlockDragOptions {
   zoom?: number;
 }
 
-interface UseBlockDragReturn {
+export interface UseBlockDragReturn {
   dragState: DragState;
   handleDragStart: (blockId: string, clientX: number, clientY: number, blocks: Block[]) => void;
   handleDragMove: (clientX: number, clientY: number) => void;

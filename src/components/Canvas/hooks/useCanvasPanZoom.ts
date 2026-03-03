@@ -19,7 +19,7 @@ interface UseCanvasPanZoomOptions {
   initialPan?: PanState;
 }
 
-interface UseCanvasPanZoomReturn {
+export interface UseCanvasPanZoomReturn {
   zoom: number;
   pan: PanState;
   setZoom: (zoom: number | ((prev: number) => number)) => void;

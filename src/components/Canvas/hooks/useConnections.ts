@@ -31,11 +31,11 @@ interface ConnectionValidation {
   reason?: string;
 }
 
-interface UseConnectionsReturn {
+export interface UseConnectionsReturn {
   connections: Connection[];
   setConnections: (updater: Connection[] | ((prev: Connection[]) => Connection[])) => void;
   connectionsByBlockId: Map<string, string[]>;
-  addConnection: (fromBlockId: string, toBlockId: string, type: ConnectionType, label?: string) => void;
+  addConnection: (fromBlockId: string, toBlockId: string, fromType: Block['type'], toType: Block['type'], type: ConnectionType, label?: string) => void;
   removeConnection: (connectionId: string) => void;
   validateConnection: (fromType: Block['type'], toType: Block['type']) => ConnectionValidation;
   getConnectionColor: (type: ConnectionType) => string;
@@ -93,6 +93,8 @@ export function useConnections(options: UseConnectionsOptions = {}): UseConnecti
   const addConnection = useCallback((
     fromBlockId: string,
     toBlockId: string,
+    fromType: Block['type'],
+    toType: Block['type'],
     type: ConnectionType,
     label?: string
   ) => {
@@ -100,8 +102,11 @@ export function useConnections(options: UseConnectionsOptions = {}): UseConnecti
       id: crypto.randomUUID(),
       fromBlockId,
       toBlockId,
+      fromType,
+      toType,
       type,
       label,
+      createdAt: new Date().toISOString(),
     };
     setConnections(prev => [...prev, newConnection]);
   }, [setConnections]);
