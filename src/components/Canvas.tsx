@@ -25,6 +25,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CollaboratorCursors } from './CollaboratorCursors';
+import { ErrorBoundary } from './ErrorBoundary';
 import { collaborationService, type PresenceUser } from '@/services/collaboration';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -1313,45 +1314,63 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
           />
 
           {blocks.map((block) => (
-            <BlockWrapper
+            <ErrorBoundary
               key={block.id}
-              block={block}
-              isSelected={selectedBlockId === block.id}
-              onSelect={() => handleBlockSelect(block.id)}
-              onUpdate={isViewOnly ? () => {} : (updates) => handleBlockUpdate(block.id, updates)}
-              onDuplicate={isViewOnly ? () => {} : () => handleBlockDuplicate(block.id)}
-              onDelete={isViewOnly ? () => {} : () => handleBlockDelete(block.id)}
-              onBringToFront={() => handleBringToFront(block.id)}
-              title={getBlockTitle(block)}
-              onTitleChange={isViewOnly ? undefined : (title) => handleTitleChange(block.id, title)}
-              zoom={zoom}
-              isConnecting={isConnecting}
-              connectionStart={connectionStart}
-              onStartConnection={() => handleStartConnection(block.id)}
-              agents={agents}
-              onToggleAgentAccess={isViewOnly ? undefined : (agentId) => toggleAgentAccess(block.id, agentId)}
-              onDragStart={isViewOnly ? undefined : () => handleBlockDragStart(block.id)}
-              onDragEnd={isViewOnly ? undefined : (screenX, screenY) => handleBlockDragEnd(block.id, screenX, screenY)}
-              onDragMove={isViewOnly ? undefined : handleBlockDragMove}
-              headerActions={block.type === 'folder' ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const folderData = block.data as FolderBlockData;
-                    const newMode = (folderData.viewMode || 'grid') === 'grid' ? 'list' : 'grid';
-                    handleBlockDataUpdate(block.id, { viewMode: newMode });
+              fallback={
+                <div 
+                  className="absolute p-4 bg-red-50 border border-red-200 rounded-lg"
+                  style={{ 
+                    left: block.x, 
+                    top: block.y, 
+                    width: block.w, 
+                    height: block.h,
+                    zIndex: block.z || 1 
                   }}
                 >
-                  {((block.data as FolderBlockData).viewMode || 'grid') === 'grid' ? <List className="w-4 h-4" /> : <Grid3X3 className="w-4 h-4" />}
-                </Button>
-              ) : undefined}
-              onDoubleTap={() => handleBlockDoubleTap(block.id)}
+                  <h4 className="text-red-800 font-semibold text-sm">Error loading block</h4>
+                  <p className="text-red-600 text-xs mt-1">Block ID: {block.id}</p>
+                </div>
+              }
             >
-              {renderBlockContent(block)}
-            </BlockWrapper>
+              <BlockWrapper
+                block={block}
+                isSelected={selectedBlockId === block.id}
+                onSelect={() => handleBlockSelect(block.id)}
+                onUpdate={isViewOnly ? () => {} : (updates) => handleBlockUpdate(block.id, updates)}
+                onDuplicate={isViewOnly ? () => {} : () => handleBlockDuplicate(block.id)}
+                onDelete={isViewOnly ? () => {} : () => handleBlockDelete(block.id)}
+                onBringToFront={() => handleBringToFront(block.id)}
+                title={getBlockTitle(block)}
+                onTitleChange={isViewOnly ? undefined : (title) => handleTitleChange(block.id, title)}
+                zoom={zoom}
+                isConnecting={isConnecting}
+                connectionStart={connectionStart}
+                onStartConnection={() => handleStartConnection(block.id)}
+                agents={agents}
+                onToggleAgentAccess={isViewOnly ? undefined : (agentId) => toggleAgentAccess(block.id, agentId)}
+                onDragStart={isViewOnly ? undefined : () => handleBlockDragStart(block.id)}
+                onDragEnd={isViewOnly ? undefined : (screenX, screenY) => handleBlockDragEnd(block.id, screenX, screenY)}
+                onDragMove={isViewOnly ? undefined : handleBlockDragMove}
+                headerActions={block.type === 'folder' ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const folderData = block.data as FolderBlockData;
+                      const newMode = (folderData.viewMode || 'grid') === 'grid' ? 'list' : 'grid';
+                      handleBlockDataUpdate(block.id, { viewMode: newMode });
+                    }}
+                  >
+                    {((block.data as FolderBlockData).viewMode || 'grid') === 'grid' ? <List className="w-4 h-4" /> : <Grid3X3 className="w-4 h-4" />}
+                  </Button>
+                ) : undefined}
+                onDoubleTap={() => handleBlockDoubleTap(block.id)}
+              >
+                {renderBlockContent(block)}
+              </BlockWrapper>
+            </ErrorBoundary>
           ))}
 
           {/* Remote collaborator cursors */}
