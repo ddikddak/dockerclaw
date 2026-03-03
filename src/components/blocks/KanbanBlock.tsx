@@ -2,7 +2,7 @@
 // Kanban Block - Fully customizable with custom stages and properties
 // ============================================
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo, memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -27,7 +27,7 @@ interface KanbanBlockProps {
   data: KanbanBlockData;
   onUpdate: (data: Partial<KanbanBlockData>) => void;
   connectedBlocks?: string[];
-  onCardMoveToBlock?: (card: any, targetBlockId: string) => void;
+  onCardMoveToBlock?: (card: KanbanCard, targetBlockId: string) => void;
   allBlocks?: Block[];
 }
 
@@ -85,7 +85,7 @@ export function KanbanBlock({
     ? data.properties 
     : DEFAULT_PROPERTIES;
 
-  const sortedColumns = [...columns].sort((a, b) => a.order - b.order);
+  const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.order - b.order), [columns]);
 
   const handleAddColumn = useCallback(() => {
     if (!newColumnName.trim()) return;
@@ -532,7 +532,7 @@ interface KanbanColumnComponentProps {
   onCardTouchEnd: () => void;
 }
 
-function KanbanColumnComponent({
+const KanbanColumnComponent = memo(function KanbanColumnComponent({
   column,
   cards,
   onAddCard,
@@ -637,7 +637,7 @@ function KanbanColumnComponent({
       </div>
     </div>
   );
-}
+});
 
 interface CardEditorProps {
   card: KanbanCard;
@@ -648,7 +648,7 @@ interface CardEditorProps {
   onSave: (card: KanbanCard) => void;
   onDelete: () => void;
   onClose: () => void;
-  onMoveToBlock?: (card: any, targetBlockId: string) => void;
+  onMoveToBlock?: (card: KanbanCard, targetBlockId: string) => void;
 }
 
 function CardEditor({ card, columns, connectedBlocks, allBlocks, onSave, onDelete, onClose, onMoveToBlock }: CardEditorProps) {
@@ -720,7 +720,7 @@ function CardEditor({ card, columns, connectedBlocks, allBlocks, onSave, onDelet
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Priority</label>
               <Select
                 value={editedCard.priority || 'P2'}
-                onValueChange={(v) => setEditedCard({ ...editedCard, priority: v as any })}
+                onValueChange={(v) => setEditedCard({ ...editedCard, priority: v as KanbanCard['priority'] })}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -806,7 +806,7 @@ function CardEditor({ card, columns, connectedBlocks, allBlocks, onSave, onDelet
                     className="gap-2"
                   >
                     <ArrowRightLeft className="w-4 h-4" />
-                    {block.type === 'kanban' ? 'Kanban' : 'Table'}: {(block.data as any).title || 'Untitled'}
+                    {block.type === 'kanban' ? 'Kanban' : 'Table'}: {('title' in block.data ? (block.data as { title?: string }).title : undefined) || 'Untitled'}
                   </Button>
                 ))}
               </div>

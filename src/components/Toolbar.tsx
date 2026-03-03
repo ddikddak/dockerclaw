@@ -45,7 +45,7 @@ import {
   Crosshair,
   Menu,
 } from 'lucide-react';
-import type { Block, BlockType, BoardPermission, Agent, Board } from '@/types';
+import type { Block, BlockType, BoardPermission, Agent, Board, DocBlockData, KanbanBlockData, InboxBlockData, ChecklistBlockData, TableBlockData, TextBlockData, HeadingBlockData, FolderBlockData, ImageBlockData } from '@/types';
 import type { PresenceUser } from '@/services/collaboration';
 import { ShareDialog } from '@/components/ShareDialog';
 import { AgentApiSettings } from '@/components/AgentApiSettings';
@@ -114,17 +114,16 @@ export function Toolbar({
 
   // Block name helper for navigator
   const getBlockName = (block: Block): string => {
-    const data = block.data as any;
     switch (block.type) {
-      case 'doc': return data?.title || 'Untitled Document';
-      case 'kanban': return `Kanban (${data?.columns?.length || 0} cols)`;
-      case 'inbox': return `Inbox (${data?.items?.length || 0})`;
-      case 'checklist': return data?.title || `Checklist (${data?.items?.length || 0})`;
-      case 'table': return `Table (${data?.rows?.length || 0} rows)`;
-      case 'text': return (data?.content?.slice(0, 30) || 'Text Note') + (data?.content?.length > 30 ? '...' : '');
-      case 'heading': return data?.content || 'Heading';
-      case 'folder': return data?.name || 'Folder';
-      case 'image': return data?.fileName || 'Image';
+      case 'doc': return (block.data as DocBlockData)?.title || 'Untitled Document';
+      case 'kanban': return `Kanban (${(block.data as KanbanBlockData)?.columns?.length || 0} cols)`;
+      case 'inbox': return `Inbox (${(block.data as InboxBlockData)?.items?.length || 0})`;
+      case 'checklist': return (block.data as ChecklistBlockData)?.title || `Checklist (${(block.data as ChecklistBlockData)?.items?.length || 0})`;
+      case 'table': return `Table (${(block.data as TableBlockData)?.rows?.length || 0} rows)`;
+      case 'text': { const d = block.data as TextBlockData; return (d?.content?.slice(0, 30) || 'Text Note') + ((d?.content?.length || 0) > 30 ? '...' : ''); }
+      case 'heading': return (block.data as HeadingBlockData)?.content || 'Heading';
+      case 'folder': return (block.data as FolderBlockData)?.title || 'Folder';
+      case 'image': return (block.data as ImageBlockData)?.fileName || 'Image';
       default: return block.type;
     }
   };

@@ -163,7 +163,7 @@ export interface TableColumn {
 
 export interface TableRow {
   id: string;
-  cells: Record<string, any>;
+  cells: Record<string, string | number | boolean>;
 }
 
 export interface TableBlockData {

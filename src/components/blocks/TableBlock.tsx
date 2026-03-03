@@ -22,7 +22,7 @@ interface TableBlockProps {
   onStartConnection?: () => void;
   isConnecting?: boolean;
   connectedBlocks?: string[];
-  onCardMoveToBlock?: (card: any, targetBlockId: string) => void;
+  onCardMoveToBlock?: (card: TableRow, targetBlockId: string) => void;
   allBlocks?: Block[];
 }
 
@@ -73,7 +73,7 @@ export function TableBlock({
   }, [data.columns, data.rows, onUpdate]);
 
   const handleUpdateCell = useCallback(
-    (rowId: string, colId: string, value: any) => {
+    (rowId: string, colId: string, value: string | number | boolean) => {
       const updatedRows = data.rows.map((row) =>
         row.id === rowId ? { ...row, cells: { ...row.cells, [colId]: value } } : row
       );
@@ -260,7 +260,7 @@ export function TableBlock({
                               key={block.id}
                               onClick={() => onCardMoveToBlock(row, block.id)}
                             >
-                              Move to {(block.data as any).title || 'Kanban'}
+                              Move to {('title' in block.data ? (block.data as { title?: string }).title : undefined) || 'Kanban'}
                             </DropdownMenuItem>
                           ))}
                         </DropdownMenuContent>

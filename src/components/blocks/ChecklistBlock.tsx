@@ -2,7 +2,7 @@
 // Checklist Block - Modern inline editing
 // ============================================
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -271,7 +271,7 @@ interface ChecklistItemRowProps {
   onGripTouchEnd: () => void;
 }
 
-function ChecklistItemRow({
+const ChecklistItemRow = memo(function ChecklistItemRow({
   item,
   index,
   isDragged,
@@ -358,4 +358,4 @@ function ChecklistItemRow({
       </button>
     </div>
   );
-}
+});

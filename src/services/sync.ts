@@ -5,6 +5,7 @@
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { db } from './db';
+import { mapRemoteBoard, mapRemoteBlock, boardToSupabaseRow, blockToSupabaseRow } from '@/lib/mappers';
 import type { Board, Block } from '@/types';
 import type { User, RealtimeChannel } from '@supabase/supabase-js';
 
@@ -120,13 +121,13 @@ class SyncService {
     }
   }
 
-  private async handleRealtimeEvent(table: 'boards' | 'blocks', payload: any) {
-    const record = payload.new as Record<string, any> | undefined;
-    const oldRecord = payload.old as Record<string, any> | undefined;
-    const eventType = payload.eventType as string;
+  private async handleRealtimeEvent(table: 'boards' | 'blocks', payload: { new?: Record<string, unknown>; old?: Record<string, unknown>; eventType?: string }) {
+    const record = payload.new;
+    const oldRecord = payload.old;
+    const eventType = payload.eventType;
 
     // Ignore our own pushes
-    const recordId = record?.id || oldRecord?.id;
+    const recordId = (record?.id ?? oldRecord?.id) as string | undefined;
     if (recordId && this.recentPushes.has(`${table}:${recordId}`)) {
       this.recentPushes.delete(`${table}:${recordId}`);
       return;
@@ -136,37 +137,15 @@ class SyncService {
 
     if (eventType === 'DELETE' && oldRecord?.id) {
       if (table === 'boards') {
-        await db.boards.delete(oldRecord.id);
+        await db.boards.delete(oldRecord.id as string);
       } else {
-        await db.blocks.delete(oldRecord.id);
+        await db.blocks.delete(oldRecord.id as string);
       }
     } else if (record) {
       if (table === 'boards') {
-        await db.boards.put({
-          id: record.id,
-          name: record.name,
-          canvas: record.canvas,
-          settings: record.settings || {},
-          createdAt: record.created_at,
-          updatedAt: record.updated_at,
-        } as Board);
+        await db.boards.put(mapRemoteBoard(record));
       } else {
-        await db.blocks.put({
-          id: record.id,
-          boardId: record.board_id,
-          type: record.type,
-          x: record.x,
-          y: record.y,
-          w: record.w,
-          h: record.h,
-          z: record.z || 0,
-          locked: record.locked || false,
-          agentAccess: record.agent_access || [],
-          data: record.data,
-          createdAt: record.created_at,
-          updatedAt: record.updated_at,
-          deletedAt: record.deleted_at || undefined,
-        } as Block);
+        await db.blocks.put(mapRemoteBlock(record));
       }
     }
 
@@ -217,15 +196,7 @@ class SyncService {
       } else if (table === 'boards') {
         const board = await db.boards.get(recordId);
         if (!board) return;
-        const { error } = await supabase.from('boards').upsert({
-          id: board.id,
-          user_id: this.user.id,
-          name: board.name,
-          canvas: board.canvas,
-          settings: board.settings || {},
-          created_at: board.createdAt,
-          updated_at: board.updatedAt,
-        });
+        const { error } = await supabase.from('boards').upsert(boardToSupabaseRow(board, this.user.id));
         if (error) { console.error(`[sync] upsert board ${recordId}:`, error); return; }
       } else {
         const block = await db.blocks.get(recordId);
@@ -237,23 +208,7 @@ class SyncService {
           await db._syncQueue.where({ table, recordId }).delete();
           return;
         }
-        const { error } = await supabase.from('blocks').upsert({
-          id: block.id,
-          user_id: this.user.id,
-          board_id: block.boardId,
-          type: block.type,
-          x: block.x,
-          y: block.y,
-          w: block.w,
-          h: block.h,
-          z: block.z || 0,
-          locked: block.locked || false,
-          agent_access: block.agentAccess || [],
-          data: block.data,
-          created_at: block.createdAt,
-          updated_at: block.updatedAt,
-          deleted_at: block.deletedAt || null,
-        });
+        const { error } = await supabase.from('blocks').upsert(blockToSupabaseRow(block, this.user.id));
         if (error) { console.error(`[sync] upsert block ${recordId}:`, error); return; }
       }
 
@@ -276,14 +231,19 @@ class SyncService {
     try {
       const boards = await db.boards.toArray();
       console.log(`[sync] pushing ${boards.length} local boards`);
-      for (const board of boards) {
-        await this.pushRecord('boards', board.id, 'upsert');
+      // Push in parallel batches of 10
+      for (let i = 0; i < boards.length; i += 10) {
+        await Promise.all(
+          boards.slice(i, i + 10).map(board => this.pushRecord('boards', board.id, 'upsert'))
+        );
       }
 
       const blocks = await db.blocks.toArray();
       console.log(`[sync] pushing ${blocks.length} local blocks`);
-      for (const block of blocks) {
-        await this.pushRecord('blocks', block.id, 'upsert');
+      for (let i = 0; i < blocks.length; i += 10) {
+        await Promise.all(
+          blocks.slice(i, i + 10).map(block => this.pushRecord('blocks', block.id, 'upsert'))
+        );
       }
 
       console.log('[sync] initial push complete');
@@ -300,8 +260,11 @@ class SyncService {
 
     try {
       const items = await db._syncQueue.toArray();
-      for (const item of items) {
-        await this.pushRecord(item.table, item.recordId, item.action);
+      // Flush in parallel batches of 10
+      for (let i = 0; i < items.length; i += 10) {
+        await Promise.all(
+          items.slice(i, i + 10).map(item => this.pushRecord(item.table, item.recordId, item.action))
+        );
       }
     } catch (err) {
       console.warn('[sync] flush queue failed:', err);
@@ -349,45 +312,29 @@ class SyncService {
       console.log(`[sync] pulled ${boards?.length ?? 0} boards, ${blocks?.length ?? 0} blocks, hasChanges: ${hasChanges}`);
 
       // Merge boards into Dexie (last-write-wins)
-      if (boards) {
-        for (const remote of boards) {
-          const local = await db.boards.get(remote.id);
-          if (!local || remote.updated_at > local.updatedAt) {
-            await db.boards.put({
-              id: remote.id,
-              name: remote.name,
-              canvas: remote.canvas,
-              settings: remote.settings || {},
-              createdAt: remote.created_at,
-              updatedAt: remote.updated_at,
-            } as Board);
-          }
-        }
+      if (boards && boards.length > 0) {
+        const localBoards = await db.boards.bulkGet(boards.map((r: Record<string, unknown>) => r.id as string));
+        const localMap = new Map(localBoards.filter(Boolean).map(b => [b!.id, b!]));
+        const toUpsert = boards
+          .filter((remote: Record<string, unknown>) => {
+            const local = localMap.get(remote.id as string);
+            return !local || (remote.updated_at as string) > local.updatedAt;
+          })
+          .map((remote: Record<string, unknown>) => mapRemoteBoard(remote));
+        if (toUpsert.length > 0) await db.boards.bulkPut(toUpsert);
       }
 
       // Merge blocks into Dexie (last-write-wins)
-      if (blocks) {
-        for (const remote of blocks) {
-          const local = await db.blocks.get(remote.id);
-          if (!local || remote.updated_at > local.updatedAt) {
-            await db.blocks.put({
-              id: remote.id,
-              boardId: remote.board_id,
-              type: remote.type,
-              x: remote.x,
-              y: remote.y,
-              w: remote.w,
-              h: remote.h,
-              z: remote.z || 0,
-              locked: remote.locked || false,
-              agentAccess: remote.agent_access || [],
-              data: remote.data,
-              createdAt: remote.created_at,
-              updatedAt: remote.updated_at,
-              deletedAt: remote.deleted_at || undefined,
-            } as Block);
-          }
-        }
+      if (blocks && blocks.length > 0) {
+        const localBlocks = await db.blocks.bulkGet(blocks.map((r: Record<string, unknown>) => r.id as string));
+        const localMap = new Map(localBlocks.filter(Boolean).map(b => [b!.id, b!]));
+        const toUpsert = blocks
+          .filter((remote: Record<string, unknown>) => {
+            const local = localMap.get(remote.id as string);
+            return !local || (remote.updated_at as string) > local.updatedAt;
+          })
+          .map((remote: Record<string, unknown>) => mapRemoteBlock(remote));
+        if (toUpsert.length > 0) await db.blocks.bulkPut(toUpsert);
       }
 
       // Update sync timestamp

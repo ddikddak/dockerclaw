@@ -23,3 +23,10 @@ dist/
 frontend/.next/
 frontend/node_modules/
 .vercel
+
+# Development artifacts
+CLAUDE.md
+**/*/CLAUDE.md
+.planning/
+prisma/
+supabase/.temp/

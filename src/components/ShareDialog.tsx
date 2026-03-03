@@ -63,9 +63,9 @@ export function ShareDialog({ boardId, isOwner, onlineUsers = [] }: ShareDialogP
       setEmail('');
       toast.success(`Invited ${trimmedEmail}`);
       loadCollaborators();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to invite:', error);
-      toast.error(error.message || 'Failed to invite');
+      toast.error(error instanceof Error ? error.message : 'Failed to invite');
     } finally {
       setIsInviting(false);
     }

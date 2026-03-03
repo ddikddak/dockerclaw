@@ -4,6 +4,7 @@
 
 import type {
   BlockType,
+  BlockData,
   DocBlockData,
   KanbanBlockData,
   InboxBlockData,
@@ -37,16 +38,17 @@ export function createDefaultDocData(): DocBlockData {
 
 export function createDefaultKanbanData(): KanbanBlockData {
   const now = new Date().toISOString();
+  const todoColumnId = crypto.randomUUID();
   return {
     columns: [
-      { id: crypto.randomUUID(), name: 'Todo', order: 0 },
+      { id: todoColumnId, name: 'Todo', order: 0 },
       { id: crypto.randomUUID(), name: 'Doing', order: 1 },
       { id: crypto.randomUUID(), name: 'Done', order: 2 },
     ],
     cards: [
       {
         id: crypto.randomUUID(),
-        columnId: '', // Will be set to first column
+        columnId: todoColumnId,
         title: 'Welcome to Kanban',
         descriptionMarkdown: 'Drag cards between columns to track progress.',
         priority: 'P2',
@@ -139,7 +141,7 @@ export function createDefaultImageData(): ImageBlockData {
   };
 }
 
-export function createDefaultBlockData(type: BlockType) {
+export function createDefaultBlockData(type: BlockType): BlockData {
   switch (type) {
     case 'doc':
       return createDefaultDocData();
@@ -160,6 +162,6 @@ export function createDefaultBlockData(type: BlockType) {
     case 'heading':
       return createDefaultHeadingData();
     default:
-      return {};
+      return createDefaultTextData();
   }
 }

@@ -2,7 +2,7 @@
 // Main App Component - Mobile Responsive
 // ============================================
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { BoardService, BlockService } from '@/services/db';
 import { syncService, hasLocalData } from '@/services/sync';
 import { SyncChoiceDialog, type SyncChoice } from '@/components/SyncChoiceDialog';
@@ -14,10 +14,11 @@ import { BoardSelector } from '@/components/BoardSelector';
 import { Toolbar } from '@/components/Toolbar';
 import { Canvas } from '@/components/Canvas';
 import { createDefaultBlockData, DEFAULT_BLOCK_SIZES } from '@/lib/blockDefaults';
+import { mapRemoteBlock } from '@/lib/mappers';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
-import type { Board, Block, BlockType, Agent, Connection, BoardPermission, BoardCollaborator } from '@/types';
+import type { Board, Block, BlockData, BlockType, Agent, Connection, BoardPermission, BoardCollaborator, ImageBlockData } from '@/types';
 import type { PresenceUser } from '@/services/collaboration';
 
 interface SharedBoard {
@@ -127,51 +128,52 @@ function App() {
     }
   }, [user]);
 
+  // Memoize shared boards list for BoardSelector (avoids .map on every render)
+  const sharedBoardsList = useMemo(
+    () => sharedBoards.map(sb => sb.board),
+    [sharedBoards]
+  );
+
+  // Memoize allBoards to avoid recreating array on every render
+  const allBoards = useMemo(
+    () => [...boards, ...sharedBoards.map(sb => sb.board)],
+    [boards, sharedBoards]
+  );
+
+  // Memoize board lookup map for O(1) access
+  const boardsById = useMemo(
+    () => new Map(allBoards.map(b => [b.id, b])),
+    [allBoards]
+  );
+
   // Load blocks when current board changes
   useEffect(() => {
     if (currentBoardId) {
       loadBlocks(currentBoardId);
-      // Load agents from board settings
-      const allBoards = [...boards, ...sharedBoards.map(sb => sb.board)];
-      const board = allBoards.find(b => b.id === currentBoardId);
-      if (board?.settings?.agents) {
-        setAgents(board.settings.agents);
-      } else {
-        setAgents([]);
-      }
-      if (board?.settings?.connections) {
-        setConnections(board.settings.connections);
-      } else {
-        setConnections([]);
-      }
+      const board = boardsById.get(currentBoardId);
+      setAgents(board?.settings?.agents || []);
+      setConnections(board?.settings?.connections || []);
     } else {
       setBlocks([]);
       setAgents([]);
       setConnections([]);
     }
-  }, [currentBoardId, boards, sharedBoards]);
+  }, [currentBoardId, boardsById]);
 
-  // Save agents when they change
+  // Save agents + connections together to avoid settings race condition
+  const settingsSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (currentBoardId && agents.length >= 0 && getCurrentPermission() !== 'viewer') {
-      const allBoards = [...boards, ...sharedBoards.map(sb => sb.board)];
-      const board = allBoards.find(b => b.id === currentBoardId);
+    if (!currentBoardId || getCurrentPermission() === 'viewer') return;
+    // Debounce settings saves to batch agents + connections changes
+    if (settingsSaveTimer.current) clearTimeout(settingsSaveTimer.current);
+    settingsSaveTimer.current = setTimeout(() => {
+      const board = boardsById.get(currentBoardId);
       BoardService.update(currentBoardId, {
-        settings: { ...board?.settings, agents }
+        settings: { ...board?.settings, agents, connections }
       });
-    }
-  }, [agents, currentBoardId, getCurrentPermission]);
-
-  // Save connections when they change
-  useEffect(() => {
-    if (currentBoardId && getCurrentPermission() !== 'viewer') {
-      const allBoards = [...boards, ...sharedBoards.map(sb => sb.board)];
-      const board = allBoards.find(b => b.id === currentBoardId);
-      BoardService.update(currentBoardId, {
-        settings: { ...board?.settings, connections }
-      });
-    }
-  }, [connections, currentBoardId, getCurrentPermission]);
+    }, 300);
+    return () => { if (settingsSaveTimer.current) clearTimeout(settingsSaveTimer.current); };
+  }, [agents, connections, currentBoardId, getCurrentPermission, boardsById]);
 
   // Subscribe to shared board block changes via Realtime
   const sharedBlockReloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -258,26 +260,44 @@ function App() {
           .eq('board_id', boardId)
           .is('deleted_at', null);
         if (error) throw error;
-        const mappedBlocks: Block[] = (data || []).map((r: any) => ({
-          id: r.id,
-          boardId: r.board_id,
-          type: r.type,
-          x: r.x,
-          y: r.y,
-          w: r.w,
-          h: r.h,
-          z: r.z || 0,
-          locked: r.locked || false,
-          agentAccess: r.agent_access || [],
-          data: r.data,
-          createdAt: r.created_at,
-          updatedAt: r.updated_at,
-          deletedAt: r.deleted_at || undefined,
-        }));
+        const mappedBlocks: Block[] = (data || []).map(mapRemoteBlock);
         setBlocks(mappedBlocks);
       } else {
         const boardBlocks = await BlockService.getByBoardId(boardId);
         setBlocks(boardBlocks);
+
+        // Background sync: catch blocks created externally (e.g. via Agent API)
+        // that exist in Supabase but not yet in local Dexie
+        if (supabase && user) {
+          supabase
+            .from('blocks')
+            .select('*')
+            .eq('board_id', boardId)
+            .eq('user_id', user.id)
+            .is('deleted_at', null)
+            .then(async ({ data: remoteBlocks, error: remoteErr }) => {
+              if (remoteErr || !remoteBlocks) return;
+              const localIds = new Set(boardBlocks.map(b => b.id));
+              const missing = remoteBlocks.filter((r: Record<string, unknown>) => !localIds.has(r.id as string));
+              const remoteIds = new Set(remoteBlocks.map((r: Record<string, unknown>) => r.id));
+              const staleDeleted = boardBlocks.filter(b => !remoteIds.has(b.id));
+
+              if (missing.length === 0 && staleDeleted.length === 0) return;
+
+              // Batch merge missing blocks into Dexie
+              await db.blocks.bulkPut(missing.map(r => mapRemoteBlock(r as Record<string, unknown>)));
+              // Batch remove stale blocks
+              if (staleDeleted.length > 0) {
+                await db.blocks.bulkDelete(staleDeleted.map(b => b.id));
+              }
+              // Reload from Dexie to update UI
+              const refreshed = await BlockService.getByBoardId(boardId);
+              setBlocks(refreshed);
+            })
+            .catch((err: unknown) => {
+              console.warn('[app] background sync failed:', err);
+            });
+        }
       }
     } catch (error) {
       console.error('Failed to load blocks:', error);
@@ -371,8 +391,7 @@ function App() {
   const handleUpdateBoardSettings = useCallback(async (updates: Partial<NonNullable<Board['settings']>>) => {
     if (!currentBoardId) return;
 
-    const allBoards = [...boards, ...sharedBoards.map((shared) => shared.board)];
-    const board = allBoards.find((item) => item.id === currentBoardId);
+    const board = boardsById.get(currentBoardId);
     const nextSettings = { ...(board?.settings || {}), ...updates };
 
     await BoardService.update(currentBoardId, { settings: nextSettings });
@@ -383,7 +402,7 @@ function App() {
           : item
       ))
     );
-  }, [boards, sharedBoards, currentBoardId]);
+  }, [boardsById, currentBoardId]);
 
   const handleAddBlock = useCallback(async (type: BlockType, x?: number, y?: number) => {
     if (!currentBoardId) {
@@ -407,7 +426,7 @@ function App() {
         h: defaultSize.h,
         z: blocks.reduce((max, b) => Math.max(max, b.z || 0), 0) + 1,
         agentAccess: [],
-        data: createDefaultBlockData(type) as any,
+        data: createDefaultBlockData(type),
       };
 
       const newBlock = shared
@@ -439,7 +458,7 @@ function App() {
         h: defaultSize.h,
         z: blocks.reduce((max, b) => Math.max(max, b.z || 0), 0) + 1,
         agentAccess: [],
-        data: { base64, fileName, caption: '' } as any,
+        data: { base64, fileName, caption: '' } as ImageBlockData,
       };
 
       const newBlock = shared
@@ -453,8 +472,7 @@ function App() {
     }
   }, [currentBoardId, blocks.length, sharedBoards]);
 
-  const allDisplayBoards = [...boards, ...sharedBoards.map(sb => sb.board)];
-  const currentBoard = allDisplayBoards.find((b) => b.id === currentBoardId);
+  const currentBoard = boardsById.get(currentBoardId ?? '');
   const currentPermission = getCurrentPermission();
   // Enable collaboration when user is signed in (cursors only appear when others join)
   const isCollaborative = !!user && !!currentBoardId;
@@ -484,7 +502,7 @@ function App() {
       <div className="hidden md:block">
         <BoardSelector
           boards={boards}
-          sharedBoards={sharedBoards.map(sb => sb.board)}
+          sharedBoards={sharedBoardsList}
           pendingInvites={pendingInvites}
           currentBoardId={currentBoardId}
           onSelectBoard={handleSelectBoard}
@@ -497,7 +515,7 @@ function App() {
       {/* Mobile Sidebar Drawer */}
       <BoardSelector
         boards={boards}
-        sharedBoards={sharedBoards.map(sb => sb.board)}
+        sharedBoards={sharedBoardsList}
         pendingInvites={pendingInvites}
         currentBoardId={currentBoardId}
         onSelectBoard={handleSelectBoard}

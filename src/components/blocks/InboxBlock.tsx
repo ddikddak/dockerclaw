@@ -2,7 +2,7 @@
 // Inbox Block - Modern feed with inline actions
 // ============================================
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -86,8 +86,8 @@ export function InboxBlock({ data, onUpdate, onConvertToTask, onConvertToDoc }: 
   );
 
   const items = data.items || [];
-  const openItems = items.filter((i) => i.status === 'open');
-  const archivedItems = items.filter((i) => i.status === 'archived');
+  const openItems = useMemo(() => items.filter((i) => i.status === 'open'), [items]);
+  const archivedItems = useMemo(() => items.filter((i) => i.status === 'archived'), [items]);
   const [showArchived, setShowArchived] = useState(false);
 
   return (
@@ -191,7 +191,7 @@ interface InboxItemCardProps {
   isArchived?: boolean;
 }
 
-function InboxItemCard({
+const InboxItemCard = memo(function InboxItemCard({
   item,
   onArchive,
   onConvertToTask,
@@ -282,4 +282,4 @@ function InboxItemCard({
       </div>
     </div>
   );
-}
+});

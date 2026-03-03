@@ -8,7 +8,7 @@ import type { Block, BoardCollaborator, CollaboratorRole } from '@/types';
 // ============================================
 // Helpers
 // ============================================
-function mapRow(row: any): BoardCollaborator {
+function mapRow(row: Record<string, unknown>): BoardCollaborator {
   return {
     id: row.id,
     boardId: row.board_id,
@@ -106,7 +106,7 @@ export const BoardSharingService = {
     return (data || []).map(mapRow);
   },
 
-  async getSharedBoards(): Promise<{ board: any; collaborator: BoardCollaborator }[]> {
+  async getSharedBoards(): Promise<{ board: Record<string, unknown>; collaborator: BoardCollaborator }[]> {
     if (!supabase) return [];
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -154,7 +154,7 @@ export const BoardSharingService = {
       .eq('status', 'pending');
 
     if (error) throw error;
-    return (data || []).map((row: any) => ({
+    return (data || []).map((row: Record<string, unknown> & { boards?: { name?: string } }) => ({
       ...mapRow(row),
       boardName: row.boards?.name || 'Unknown board',
     }));
@@ -191,7 +191,7 @@ export const SharedBlockService = {
 
   async update(blockId: string, updates: Partial<Block>): Promise<void> {
     if (!supabase) throw new Error('Supabase not configured');
-    const supabaseUpdates: Record<string, any> = { updated_at: new Date().toISOString() };
+    const supabaseUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (updates.x !== undefined) supabaseUpdates.x = updates.x;
     if (updates.y !== undefined) supabaseUpdates.y = updates.y;
     if (updates.w !== undefined) supabaseUpdates.w = updates.w;

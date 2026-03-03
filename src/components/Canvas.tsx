@@ -28,7 +28,7 @@ import { CollaboratorCursors } from './CollaboratorCursors';
 import { collaborationService, type PresenceUser } from '@/services/collaboration';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
-import type { Block, BlockData, Board, InboxItem, BlockType, Connection, ConnectionType, Agent, FolderItem, BoardPermission } from '@/types';
+import type { Block, BlockData, Board, InboxItem, BlockType, Connection, ConnectionType, Agent, FolderItem, BoardPermission, DocBlockData, KanbanBlockData, InboxBlockData, ChecklistBlockData, TableBlockData, TableColumn, TextBlockData, ImageBlockData, HeadingBlockData, FolderBlockData } from '@/types';
 
 interface CanvasProps {
   board: Board;
@@ -143,8 +143,9 @@ function validateConnection(fromType: BlockType, toType: BlockType): ConnectionT
 
 function getBlockTitle(block: Block): string {
   const data = block.data || {};
-  const title = (data as any).title;
-  if (title) return title;
+  if ('title' in data && typeof (data as { title?: string }).title === 'string') {
+    return (data as { title: string }).title;
+  }
   switch (block.type) {
     case 'doc': return 'Untitled Document';
     case 'kanban': return 'Kanban Board';
@@ -154,26 +155,109 @@ function getBlockTitle(block: Block): string {
     case 'text': return 'Note';
     case 'folder': return 'Folder';
     case 'image': return 'Image';
-    case 'heading': return (data as any).content?.slice(0, 30) || 'Heading';
+    case 'heading': return (data as HeadingBlockData).content?.slice(0, 30) || 'Heading';
     default: return 'Block';
   }
 }
 
+// Memoized collaborator cursors — avoids Array.from() on every render
+const MemoizedCursors = memo(function MemoizedCursors({
+  remoteCursors,
+  remoteSelections,
+  blocks,
+}: {
+  remoteCursors: Map<string, { x: number; y: number; email: string; color: string }>;
+  remoteSelections: Map<string, { blockId: string; color: string }>;
+  blocks: Block[];
+}) {
+  const cursors = useMemo(() =>
+    Array.from(remoteCursors.entries()).map(([userId, data]) => ({
+      userId, email: data.email, color: data.color, x: data.x, y: data.y,
+    })),
+    [remoteCursors]
+  );
+
+  const selections = useMemo(() =>
+    Array.from(remoteSelections.entries()).map(([userId, data]) => ({
+      userId, color: data.color, blockId: data.blockId,
+    })),
+    [remoteSelections]
+  );
+
+  return <CollaboratorCursors cursors={cursors} selections={selections} blocks={blocks} />;
+});
+
+// Memoized SVG connections renderer — avoids O(n*m) recalculation on every render
+const ConnectionsSvg = memo(function ConnectionsSvg({
+  connections,
+  blocksById,
+  onDoubleClick,
+}: {
+  connections: Connection[];
+  blocksById: Map<string, Block>;
+  onDoubleClick: (conn: Connection) => void;
+}) {
+  const connectionPaths = useMemo(() =>
+    connections.map((conn) => {
+      const fromBlock = blocksById.get(conn.fromBlockId);
+      const toBlock = blocksById.get(conn.toBlockId);
+      if (!fromBlock || !toBlock) return null;
+      const { from: fromSide, to: toSide } = getConnectionSide(fromBlock, toBlock);
+      const fromPoint = getSideCenter(fromBlock, fromSide);
+      const toPoint = getSideCenter(toBlock, toSide);
+      return {
+        conn,
+        path: getBezierPath(fromPoint, toPoint, fromSide, toSide),
+        color: getConnectionColor(conn.type),
+        midX: (fromPoint.x + toPoint.x) / 2,
+        midY: (fromPoint.y + toPoint.y) / 2,
+      };
+    }).filter(Boolean) as Array<{ conn: Connection; path: string; color: string; midX: number; midY: number }>,
+    [connections, blocksById]
+  );
+
+  return (
+    <svg className="absolute" style={{ width: '100%', height: '100%', left: 0, top: 0, overflow: 'visible' }}>
+      <defs>
+        {(['notify', 'explains', 'displays', 'links'] as ConnectionType[]).map((type) => (
+          <marker key={type} id={`arrowhead-${type}`} markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill={getConnectionColor(type)} />
+          </marker>
+        ))}
+      </defs>
+      {connectionPaths.map(({ conn, path, color, midX, midY }) => (
+        <g key={conn.id}>
+          <path d={path} stroke="transparent" strokeWidth="20" fill="none" style={{ cursor: 'pointer' }} onDoubleClick={() => onDoubleClick(conn)} />
+          <path d={path} stroke={color} strokeWidth="2" fill="none" markerEnd={`url(#arrowhead-${conn.type})`} className="hover:stroke-[3px] transition-all" style={{ pointerEvents: 'none' }} />
+          {(conn.label || getConnectionLabel(conn.type)) && (
+            <g>
+              <rect x={midX - 32} y={midY - 11} width="64" height="22" rx="4" fill="white" stroke={color} strokeWidth="1" />
+              <text x={midX} y={midY + 4} fontSize="10" fill={color} fontWeight="500" textAnchor="middle">
+                {conn.label || getConnectionLabel(conn.type)}
+              </text>
+            </g>
+          )}
+        </g>
+      ))}
+    </svg>
+  );
+});
+
 // Convert a block to a folder item
 function blockToFolderItem(block: Block): FolderItem {
   const now = new Date().toISOString();
-  const data = (block.data as any) || {};
-  
+  const data = block.data || {};
+
   let preview = '';
   switch (block.type) {
-    case 'doc': preview = data.contentMarkdown?.slice(0, 100) || 'Empty document'; break;
-    case 'text': preview = data.content?.slice(0, 100) || 'Empty note'; break;
-    case 'kanban': preview = `${data.cards?.length || 0} cards`; break;
-    case 'checklist': preview = `${data.items?.length || 0} items`; break;
-    case 'table': preview = `${data.rows?.length || 0} rows`; break;
-    case 'inbox': preview = `${data.items?.length || 0} items`; break;
-    case 'image': preview = data.fileName || 'Image'; break;
-    case 'heading': preview = data.content?.slice(0, 100) || 'Empty heading'; break;
+    case 'doc': preview = (data as DocBlockData).contentMarkdown?.slice(0, 100) || 'Empty document'; break;
+    case 'text': preview = (data as TextBlockData).content?.slice(0, 100) || 'Empty note'; break;
+    case 'kanban': preview = `${(data as KanbanBlockData).cards?.length || 0} cards`; break;
+    case 'checklist': preview = `${(data as ChecklistBlockData).items?.length || 0} items`; break;
+    case 'table': preview = `${(data as TableBlockData).rows?.length || 0} rows`; break;
+    case 'inbox': preview = `${(data as InboxBlockData).items?.length || 0} items`; break;
+    case 'image': preview = (data as ImageBlockData).fileName || 'Image'; break;
+    case 'heading': preview = (data as HeadingBlockData).content?.slice(0, 100) || 'Empty heading'; break;
     default: preview = '';
   }
   
@@ -207,24 +291,24 @@ const FullScreenBlockView = memo(function FullScreenBlockView({
   handleFolderItemDragOut,
 }: {
   block: Block;
-  onUpdate: (blockId: string, updates: any) => void;
+  onUpdate: (blockId: string, updates: Partial<BlockData>) => void;
   onClose: () => void;
-  connections: any[];
+  connections: Connection[];
   blocks: Block[];
-  handleCardMoveBetweenBlocks: (fromId: string, toId: string, card: any) => void;
-  handleConvertToTask: (item: any) => void;
-  handleConvertToDoc: (item: any) => void;
+  handleCardMoveBetweenBlocks: (fromId: string, toId: string, card: { id: string; title?: string }) => void;
+  handleConvertToTask: (item: InboxItem) => void;
+  handleConvertToDoc: (item: InboxItem) => void;
   selectedBlockId: string | null;
   dragOverFolderId: string | null;
   draggedBlockId: string | null;
   updateDragOverFolderId: (id: string | null) => void;
   handleDropOnFolder: (folderId: string, blockId: string) => void;
-  handleFolderItemDragOut: (folderId: string, item: any, x: number, y: number) => void;
+  handleFolderItemDragOut: (folderId: string, item: FolderItem, x: number, y: number) => void;
 }) {
   const HEADER_H = 44;
 
   // Stable onUpdate callback bound to this block's ID
-  const handleUpdate = useCallback((updates: any) => {
+  const handleUpdate = useCallback((updates: Partial<BlockData>) => {
     onUpdate(block.id, updates);
   }, [block.id, onUpdate]);
 
@@ -239,11 +323,11 @@ const FullScreenBlockView = memo(function FullScreenBlockView({
     const blockData = block.data || {};
     switch (block.type) {
       case 'doc':
-        return <DocBlock data={blockData as any} onUpdate={handleUpdate} />;
+        return <DocBlock data={blockData as DocBlockData} onUpdate={handleUpdate} />;
       case 'kanban':
         return (
           <KanbanBlock
-            data={blockData as any}
+            data={blockData as KanbanBlockData}
             onUpdate={handleUpdate}
             connectedBlocks={connectedBlockIds}
             onCardMoveToBlock={(card, targetBlockId) => handleCardMoveBetweenBlocks(block.id, targetBlockId, card)}
@@ -251,13 +335,13 @@ const FullScreenBlockView = memo(function FullScreenBlockView({
           />
         );
       case 'inbox':
-        return <InboxBlock data={blockData as any} onUpdate={handleUpdate} onConvertToTask={handleConvertToTask} onConvertToDoc={handleConvertToDoc} />;
+        return <InboxBlock data={blockData as InboxBlockData} onUpdate={handleUpdate} onConvertToTask={handleConvertToTask} onConvertToDoc={handleConvertToDoc} />;
       case 'checklist':
-        return <ChecklistBlock data={blockData as any} onUpdate={handleUpdate} />;
+        return <ChecklistBlock data={blockData as ChecklistBlockData} onUpdate={handleUpdate} />;
       case 'table':
         return (
           <TableBlock
-            data={blockData as any}
+            data={blockData as TableBlockData}
             onUpdate={handleUpdate}
             connectedBlocks={connectedBlockIds}
             onCardMoveToBlock={(card, targetBlockId) => handleCardMoveBetweenBlocks(block.id, targetBlockId, card)}
@@ -265,15 +349,15 @@ const FullScreenBlockView = memo(function FullScreenBlockView({
           />
         );
       case 'text':
-        return <TextBlock data={blockData as any} onUpdate={handleUpdate} />;
+        return <TextBlock data={blockData as TextBlockData} onUpdate={handleUpdate} />;
       case 'image':
-        return <ImageBlock data={blockData as any} onUpdate={handleUpdate} />;
+        return <ImageBlock data={blockData as ImageBlockData} onUpdate={handleUpdate} />;
       case 'heading':
-        return <HeadingBlock data={blockData as any} onUpdate={handleUpdate} isSelected={selectedBlockId === block.id} />;
+        return <HeadingBlock data={blockData as HeadingBlockData} onUpdate={handleUpdate} isSelected={selectedBlockId === block.id} />;
       case 'folder':
         return (
           <FolderBlock
-            data={{ ...blockData, id: block.id } as any}
+            data={{ ...blockData, id: block.id } as FolderBlockData}
             onUpdate={handleUpdate}
             isDropTarget={dragOverFolderId === block.id}
             onDragOver={() => draggedBlockId && updateDragOverFolderId(block.id)}
@@ -351,7 +435,10 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   const [newAgentName, setNewAgentName] = useState('');
   const [newAgentColor, setNewAgentColor] = useState('#3b82f6');
   const [fullScreenBlockId, setFullScreenBlockId] = useState<string | null>(null);
-  const fullScreenBlock = useMemo(() => fullScreenBlockId ? blocks.find(b => b.id === fullScreenBlockId) || null : null, [fullScreenBlockId, blocks]);
+  // O(1) block lookup map - used throughout for connection rendering, find operations
+  const blocksById = useMemo(() => new Map(blocks.map(b => [b.id, b])), [blocks]);
+
+  const fullScreenBlock = useMemo(() => fullScreenBlockId ? blocksById.get(fullScreenBlockId) || null : null, [fullScreenBlockId, blocksById]);
 
   // Push/pop browser history so device back button closes fullscreen instead of leaving the page
   const openFullScreen = useCallback((blockId: string) => {
@@ -379,7 +466,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   // Auto-focus on a block (e.g. after adding a new one)
   useEffect(() => {
     if (!focusBlockId) return;
-    const block = blocks.find(b => b.id === focusBlockId);
+    const block = blocksById.get(focusBlockId);
     if (!block) return;
     const canvas = canvasRef.current;
     const el = transformRef.current;
@@ -551,21 +638,23 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     }
   }, [blocks, onBlocksChange, isSharedBoard]);
 
-  const handleBlockDataUpdate = useCallback(async (blockId: string, dataUpdates: any) => {
-    const block = blocks.find(b => b.id === blockId);
+  const handleBlockDataUpdate = useCallback(async (blockId: string, dataUpdates: Partial<BlockData>) => {
+    const block = blocksById.get(blockId);
     if (!block) return;
     const updatedData = { ...block.data, ...dataUpdates };
+    // Optimistic: update UI first for responsive feel
+    onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, data: updatedData } : b));
+    // Then persist
     if (isSharedBoard) {
       await SharedBlockService.update(blockId, { data: updatedData });
     } else {
       await BlockService.update(blockId, { data: updatedData });
     }
-    onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, data: updatedData } : b));
-  }, [blocks, onBlocksChange, isSharedBoard]);
+  }, [blocks, blocksById, onBlocksChange, isSharedBoard]);
 
   const handleBlockDuplicate = useCallback(async (blockId: string) => {
     if (isSharedBoard && boardOwnerId) {
-      const block = blocks.find(b => b.id === blockId);
+      const block = blocksById.get(blockId);
       if (!block) return;
       const newBlock = await SharedBlockService.duplicate(block, boardOwnerId);
       onBlocksChange([...blocks, newBlock]);
@@ -573,7 +662,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       const newBlock = await BlockService.duplicate(blockId);
       onBlocksChange([...blocks, newBlock]);
     }
-  }, [blocks, onBlocksChange, isSharedBoard, boardOwnerId]);
+  }, [blocks, blocksById, onBlocksChange, isSharedBoard, boardOwnerId]);
 
   const handleBlockDelete = useCallback(async (blockId: string) => {
     if (isSharedBoard) {
@@ -631,7 +720,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       openFullScreen(blockId);
       return;
     }
-    const block = blocks.find(b => b.id === blockId);
+    const block = blocksById.get(blockId);
     if (!block) return;
     const canvas = canvasRef.current;
     const el = transformRef.current;
@@ -653,7 +742,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
 
     setZoom(targetZoom);
     setPan({ x: newPanX, y: newPanY });
-  }, [blocks, pan, zoom, isMobile]);
+  }, [blocksById, pan, zoom, isMobile]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
@@ -760,8 +849,8 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       setIsConnecting(true);
       setConnectionStart(blockId);
     } else if (connectionStart && connectionStart !== blockId) {
-      const fromBlock = blocks.find(b => b.id === connectionStart);
-      const toBlock = blocks.find(b => b.id === blockId);
+      const fromBlock = blocksById.get(connectionStart);
+      const toBlock = blocksById.get(blockId);
       if (fromBlock && toBlock) {
         const connType = validateConnection(fromBlock.type, toBlock.type);
         if (connType) {
@@ -779,7 +868,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       setIsConnecting(false);
       setConnectionStart(null);
     }
-  }, [isConnecting, connectionStart, blocks]);
+  }, [isConnecting, connectionStart, blocksById]);
 
   const handleCancelConnection = useCallback(() => {
     setIsConnecting(false);
@@ -831,7 +920,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   }, [agents, blocks, onAgentsChange, handleBlockUpdate]);
 
   const toggleAgentAccess = useCallback((blockId: string, agentId: string) => {
-    const block = blocks.find(b => b.id === blockId);
+    const block = blocksById.get(blockId);
     if (!block) return;
     const currentAccess = block.agentAccess || [];
     handleBlockUpdate(blockId, { 
@@ -839,7 +928,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
         ? currentAccess.filter(id => id !== agentId)
         : [...currentAccess, agentId]
     });
-  }, [blocks, handleBlockUpdate]);
+  }, [blocksById, handleBlockUpdate]);
 
   // Handle block drag start
   const handleBlockDragStart = useCallback((blockId: string) => {
@@ -870,8 +959,8 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   // Handle dropping a block onto a folder
   // Combines folder update + block delete in a single state update to avoid race conditions
   const handleDropOnFolder = useCallback(async (folderId: string, droppedBlockId: string) => {
-    const draggedBlock = blocks.find(b => b.id === droppedBlockId);
-    const folderBlock = blocks.find(b => b.id === folderId);
+    const draggedBlock = blocksById.get(droppedBlockId);
+    const folderBlock = blocksById.get(folderId);
 
     if (draggedBlock && folderBlock && draggedBlock.id !== folderBlock.id) {
       const folderItem = blockToFolderItem(draggedBlock);
@@ -897,7 +986,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
 
     setDraggedBlockId(null);
     updateDragOverFolderId(null);
-  }, [blocks, onBlocksChange, updateDragOverFolderId, isSharedBoard]);
+  }, [blocks, blocksById, onBlocksChange, updateDragOverFolderId, isSharedBoard]);
 
   // Handle mouse-based drag end — drop onto folder if hovering one
   const handleBlockDragEnd = useCallback((blockId: string, screenX?: number, screenY?: number) => {
@@ -933,7 +1022,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       w: size.w,
       h: size.h,
       z: maxZIndex + 1,
-      data: item.data as any,
+      data: item.data as BlockData,
     };
 
     const newBlock = isSharedBoard && boardOwnerId
@@ -943,7 +1032,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     setMaxZIndex(prev => prev + 1);
 
     // Build updated blocks in one pass: remove item from folder + add new block
-    const folderBlock = blocks.find(b => b.id === folderId);
+    const folderBlock = blocksById.get(folderId);
     let updatedBlocks = blocks;
     if (folderBlock) {
       const folderData = folderBlock.data as { items?: FolderItem[] };
@@ -960,7 +1049,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     }
 
     onBlocksChange([...updatedBlocks, newBlock]);
-  }, [board.id, blocks, maxZIndex, onBlocksChange, screenToCanvas, isSharedBoard, boardOwnerId]);
+  }, [board.id, blocks, blocksById, maxZIndex, onBlocksChange, screenToCanvas, isSharedBoard, boardOwnerId]);
 
   // Handle canvas drop for folder items dragged out, blocks dropped on folders, and image file drops
   const handleCanvasDrop = useCallback((e: React.DragEvent) => {
@@ -1028,12 +1117,12 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
   }, [blocks, screenToCanvas, dragOverFolderId, updateDragOverFolderId]);
 
   const handleConvertToTask = useCallback(async (item: InboxItem) => {
-    const kanbanBlock = blocks.find(b => b.type === 'kanban');
+    const kanbanBlock = blocks.find(b => b.type === 'kanban'); // linear search needed: finding by type, not id
     if (!kanbanBlock) {
       alert('No Kanban block found. Please create one first.');
       return;
     }
-    const kanbanData = kanbanBlock.data as { columns: any[]; cards: any[] };
+    const kanbanData = kanbanBlock.data as KanbanBlockData;
     const firstColumn = kanbanData.columns.sort((a, b) => a.order - b.order)[0];
     if (!firstColumn) {
       alert('No columns found in Kanban block.');
@@ -1052,7 +1141,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
         updatedAt: now,
       }]
     });
-  }, [blocks, handleBlockDataUpdate]);
+  }, [blocks, blocksById, handleBlockDataUpdate]);
 
   const handleConvertToDoc = useCallback(async (item: InboxItem) => {
     const centerPos = screenToCanvas(
@@ -1086,76 +1175,91 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     handleBringToFront(blockId);
   }, [handleBringToFront]);
 
-  const handleCardMoveBetweenBlocks = useCallback(async (fromBlockId: string, toBlockId: string, card: any) => {
-    const fromBlock = blocks.find(b => b.id === fromBlockId);
-    const toBlock = blocks.find(b => b.id === toBlockId);
+  const handleCardMoveBetweenBlocks = useCallback(async (fromBlockId: string, toBlockId: string, card: { id: string; title?: string; [key: string]: unknown }) => {
+    const fromBlock = blocksById.get(fromBlockId);
+    const toBlock = blocksById.get(toBlockId);
     if (!fromBlock || !toBlock) return;
 
     if (fromBlock.type === 'kanban') {
-      const fromData = fromBlock.data as { cards: any[] };
+      const fromData = fromBlock.data as KanbanBlockData;
       await handleBlockDataUpdate(fromBlockId, { cards: fromData.cards.filter(c => c.id !== card.id) });
     } else if (fromBlock.type === 'table') {
-      const fromData = fromBlock.data as { rows: any[] };
+      const fromData = fromBlock.data as TableBlockData;
       await handleBlockDataUpdate(fromBlockId, { rows: fromData.rows.filter(r => r.id !== card.id) });
     }
 
     if (toBlock.type === 'kanban') {
-      const toData = toBlock.data as { columns: any[], cards: any[] };
-      const firstColumn = toData.columns.sort((a, b) => a.order - b.order)[0];
+      const toData = toBlock.data as KanbanBlockData;
+      const firstColumn = [...toData.columns].sort((a, b) => a.order - b.order)[0];
       if (firstColumn) {
         await handleBlockDataUpdate(toBlockId, {
           cards: [...toData.cards, { ...card, columnId: firstColumn.id, updatedAt: new Date().toISOString() }]
         });
       }
     } else if (toBlock.type === 'table') {
-      const toData = toBlock.data as { columns: any[], rows: any[] };
-      const newRow: { id: string; cells: Record<string, any> } = { id: card.id, cells: {} };
-      toData.columns.forEach((col: any) => {
+      const toData = toBlock.data as TableBlockData;
+      const newRow: { id: string; cells: Record<string, string | boolean> } = { id: card.id, cells: {} };
+      toData.columns.forEach((col: TableColumn) => {
         newRow.cells[col.id] = col.type === 'checkbox' ? false : (card.title || '');
       });
       await handleBlockDataUpdate(toBlockId, { rows: [...toData.rows, newRow] });
     }
-  }, [blocks, handleBlockDataUpdate]);
+  }, [blocksById, handleBlockDataUpdate]);
+
+  // Pre-compute connection map for O(1) lookup per block
+  const connectionsByBlockId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const c of connections) {
+      const fromList = map.get(c.fromBlockId) || [];
+      fromList.push(c.toBlockId);
+      map.set(c.fromBlockId, fromList);
+      const toList = map.get(c.toBlockId) || [];
+      toList.push(c.fromBlockId);
+      map.set(c.toBlockId, toList);
+    }
+    return map;
+  }, [connections]);
 
   const renderBlockContent = (block: Block) => {
     const blockData = block.data || {};
+    const connectedBlockIds = connectionsByBlockId.get(block.id) || [];
     switch (block.type) {
       case 'doc':
-        return <DocBlock data={blockData as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
+        return <DocBlock data={blockData as DocBlockData} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
       case 'kanban':
         return (
           <KanbanBlock
-            data={blockData as any}
+            data={blockData as KanbanBlockData}
             onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)}
-            connectedBlocks={connections.filter(c => c.fromBlockId === block.id || c.toBlockId === block.id).map(c => c.fromBlockId === block.id ? c.toBlockId : c.fromBlockId)}
+            connectedBlocks={connectedBlockIds}
             onCardMoveToBlock={(card, targetBlockId) => handleCardMoveBetweenBlocks(block.id, targetBlockId, card)}
             allBlocks={blocks}
           />
         );
       case 'inbox':
-        return <InboxBlock data={blockData as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} onConvertToTask={handleConvertToTask} onConvertToDoc={handleConvertToDoc} />;
+        return <InboxBlock data={blockData as InboxBlockData} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} onConvertToTask={handleConvertToTask} onConvertToDoc={handleConvertToDoc} />;
       case 'checklist':
-        return <ChecklistBlock data={blockData as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
+        return <ChecklistBlock data={blockData as ChecklistBlockData} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
       case 'table':
         return (
           <TableBlock
-            data={blockData as any}
+            data={blockData as TableBlockData}
             onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)}
-            connectedBlocks={connections.filter(c => c.fromBlockId === block.id || c.toBlockId === block.id).map(c => c.fromBlockId === block.id ? c.toBlockId : c.fromBlockId)}
+            connectedBlocks={connectedBlockIds}
             onCardMoveToBlock={(card, targetBlockId) => handleCardMoveBetweenBlocks(block.id, targetBlockId, card)}
             allBlocks={blocks}
           />
         );
       case 'text':
-        return <TextBlock data={blockData as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
+        return <TextBlock data={blockData as TextBlockData} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
       case 'image':
-        return <ImageBlock data={blockData as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
+        return <ImageBlock data={blockData as ImageBlockData} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} />;
       case 'heading':
-        return <HeadingBlock data={blockData as any} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} isSelected={selectedBlockId === block.id} />;
+        return <HeadingBlock data={blockData as HeadingBlockData} onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)} isSelected={selectedBlockId === block.id} />;
       case 'folder':
         return (
           <FolderBlock
-            data={{ ...blockData, id: block.id } as any}
+            data={{ ...blockData, id: block.id } as FolderBlockData}
             onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)}
             isDropTarget={dragOverFolderId === block.id}
             onDragOver={() => draggedBlockId && updateDragOverFolderId(block.id)}
@@ -1201,42 +1305,11 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
           className="absolute inset-0"
           style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0', width: '100%', height: '100%' }}
         >
-          <svg className="absolute" style={{ width: '100%', height: '100%', left: 0, top: 0, overflow: 'visible' }}>
-            <defs>
-              {(['notify', 'explains', 'displays', 'links'] as ConnectionType[]).map((type) => (
-                <marker key={type} id={`arrowhead-${type}`} markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                  <polygon points="0 0, 10 3.5, 0 7" fill={getConnectionColor(type)} />
-                </marker>
-              ))}
-            </defs>
-            {connections.map((conn) => {
-              const fromBlock = blocks.find(b => b.id === conn.fromBlockId);
-              const toBlock = blocks.find(b => b.id === conn.toBlockId);
-              if (!fromBlock || !toBlock) return null;
-              const { from: fromSide, to: toSide } = getConnectionSide(fromBlock, toBlock);
-              const fromPoint = getSideCenter(fromBlock, fromSide);
-              const toPoint = getSideCenter(toBlock, toSide);
-              const path = getBezierPath(fromPoint, toPoint, fromSide, toSide);
-              const color = getConnectionColor(conn.type);
-              const midX = (fromPoint.x + toPoint.x) / 2;
-              const midY = (fromPoint.y + toPoint.y) / 2;
-              
-              return (
-                <g key={conn.id}>
-                  <path d={path} stroke="transparent" strokeWidth="20" fill="none" style={{ cursor: 'pointer' }} onDoubleClick={() => handleConnectionDoubleClick(conn)} />
-                  <path d={path} stroke={color} strokeWidth="2" fill="none" markerEnd={`url(#arrowhead-${conn.type})`} className="hover:stroke-[3px] transition-all" style={{ pointerEvents: 'none' }} />
-                  {(conn.label || getConnectionLabel(conn.type)) && (
-                    <g>
-                      <rect x={midX - 32} y={midY - 11} width="64" height="22" rx="4" fill="white" stroke={color} strokeWidth="1" />
-                      <text x={midX} y={midY + 4} fontSize="10" fill={color} fontWeight="500" textAnchor="middle">
-                        {conn.label || getConnectionLabel(conn.type)}
-                      </text>
-                    </g>
-                  )}
-                </g>
-              );
-            })}
-          </svg>
+          <ConnectionsSvg
+            connections={connections}
+            blocksById={blocksById}
+            onDoubleClick={handleConnectionDoubleClick}
+          />
 
           {blocks.map((block) => (
             <BlockWrapper
@@ -1266,12 +1339,12 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
                   className="h-7 w-7"
                   onClick={(e) => {
                     e.stopPropagation();
-                    const folderData = block.data as any;
+                    const folderData = block.data as FolderBlockData;
                     const newMode = (folderData.viewMode || 'grid') === 'grid' ? 'list' : 'grid';
                     handleBlockDataUpdate(block.id, { viewMode: newMode });
                   }}
                 >
-                  {((block.data as any).viewMode || 'grid') === 'grid' ? <List className="w-4 h-4" /> : <Grid3X3 className="w-4 h-4" />}
+                  {((block.data as FolderBlockData).viewMode || 'grid') === 'grid' ? <List className="w-4 h-4" /> : <Grid3X3 className="w-4 h-4" />}
                 </Button>
               ) : undefined}
               onDoubleTap={() => handleBlockDoubleTap(block.id)}
@@ -1281,19 +1354,9 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
           ))}
 
           {/* Remote collaborator cursors */}
-          <CollaboratorCursors
-            cursors={Array.from(remoteCursors.entries()).map(([userId, data]) => ({
-              userId,
-              email: data.email,
-              color: data.color,
-              x: data.x,
-              y: data.y,
-            }))}
-            selections={Array.from(remoteSelections.entries()).map(([userId, data]) => ({
-              userId,
-              color: data.color,
-              blockId: data.blockId,
-            }))}
+          <MemoizedCursors
+            remoteCursors={remoteCursors}
+            remoteSelections={remoteSelections}
             blocks={blocks}
           />
         </div>

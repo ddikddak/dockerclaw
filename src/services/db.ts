@@ -25,6 +25,13 @@ class DockerClawDB extends Dexie {
       blocks: 'id, boardId, type, x, y, z, createdAt, updatedAt, deletedAt',
       _syncQueue: '++id, [table+recordId], timestamp',
     });
+
+    // v3: compound index for efficient soft-delete filtering
+    this.version(3).stores({
+      boards: 'id, name, createdAt, updatedAt',
+      blocks: 'id, boardId, [boardId+deletedAt], type, x, y, z, createdAt, updatedAt, deletedAt',
+      _syncQueue: '++id, [table+recordId], timestamp',
+    });
   }
 }
 
@@ -64,9 +71,8 @@ export class BoardService {
     // Delete all blocks associated with this board first
     const blockIds = await db.blocks.where('boardId').equals(id).primaryKeys();
     await db.blocks.where('boardId').equals(id).delete();
-    for (const blockId of blockIds) {
-      syncService.enqueuePush('blocks', blockId as string, 'delete');
-    }
+    // Enqueue sync deletions in parallel
+    blockIds.forEach(blockId => syncService.enqueuePush('blocks', blockId as string, 'delete'));
     await db.boards.delete(id);
     syncService.enqueuePush('boards', id, 'delete');
   }
