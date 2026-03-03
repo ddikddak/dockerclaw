@@ -6,7 +6,7 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { db } from './db';
 import { mapRemoteBoard, mapRemoteBlock, boardToSupabaseRow, blockToSupabaseRow } from '@/lib/mappers';
-import type { Board, Block } from '@/types';
+// Types imported via mappers
 import type { User, RealtimeChannel } from '@supabase/supabase-js';
 
 // ============================================

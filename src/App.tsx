@@ -18,7 +18,7 @@ import { mapRemoteBlock } from '@/lib/mappers';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
-import type { Board, Block, BlockData, BlockType, Agent, Connection, BoardPermission, BoardCollaborator, ImageBlockData } from '@/types';
+import type { Board, Block, BlockType, Agent, Connection, BoardPermission, BoardCollaborator, ImageBlockData } from '@/types';
 import type { PresenceUser } from '@/services/collaboration';
 
 interface SharedBoard {
@@ -241,7 +241,7 @@ function App() {
           updatedAt: s.board.updated_at,
         } as Board,
         collaborator: s.collaborator,
-        ownerId: s.board.user_id,
+        ownerId: s.board.user_id as string,
       })));
       setPendingInvites(invites);
     } catch (error) {
@@ -269,13 +269,14 @@ function App() {
         // Background sync: catch blocks created externally (e.g. via Agent API)
         // that exist in Supabase but not yet in local Dexie
         if (supabase && user) {
-          supabase
-            .from('blocks')
-            .select('*')
-            .eq('board_id', boardId)
-            .eq('user_id', user.id)
-            .is('deleted_at', null)
-            .then(async ({ data: remoteBlocks, error: remoteErr }) => {
+          (async () => {
+            try {
+              const { data: remoteBlocks, error: remoteErr } = await supabase
+                .from('blocks')
+                .select('*')
+                .eq('board_id', boardId)
+                .eq('user_id', user.id)
+                .is('deleted_at', null);
               if (remoteErr || !remoteBlocks) return;
               const localIds = new Set(boardBlocks.map(b => b.id));
               const missing = remoteBlocks.filter((r: Record<string, unknown>) => !localIds.has(r.id as string));
@@ -293,10 +294,10 @@ function App() {
               // Reload from Dexie to update UI
               const refreshed = await BlockService.getByBoardId(boardId);
               setBlocks(refreshed);
-            })
-            .catch((err: unknown) => {
+            } catch (err: unknown) {
               console.warn('[app] background sync failed:', err);
-            });
+            }
+          })();
         }
       }
     } catch (error) {

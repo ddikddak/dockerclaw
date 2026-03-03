@@ -643,12 +643,12 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     if (!block) return;
     const updatedData = { ...block.data, ...dataUpdates };
     // Optimistic: update UI first for responsive feel
-    onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, data: updatedData } : b));
+    onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, data: updatedData as Block['data'] } : b));
     // Then persist
     if (isSharedBoard) {
-      await SharedBlockService.update(blockId, { data: updatedData });
+      await SharedBlockService.update(blockId, { data: updatedData as Block['data'] });
     } else {
-      await BlockService.update(blockId, { data: updatedData });
+      await BlockService.update(blockId, { data: updatedData as Block['data'] });
     }
   }, [blocks, blocksById, onBlocksChange, isSharedBoard]);
 
@@ -1175,7 +1175,8 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     handleBringToFront(blockId);
   }, [handleBringToFront]);
 
-  const handleCardMoveBetweenBlocks = useCallback(async (fromBlockId: string, toBlockId: string, card: { id: string; title?: string; [key: string]: unknown }) => {
+  type CardMoveData = { id: string; title?: string; [key: string]: unknown };
+  const handleCardMoveBetweenBlocks = useCallback(async (fromBlockId: string, toBlockId: string, card: CardMoveData) => {
     const fromBlock = blocksById.get(fromBlockId);
     const toBlock = blocksById.get(toBlockId);
     if (!fromBlock || !toBlock) return;
@@ -1193,7 +1194,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       const firstColumn = [...toData.columns].sort((a, b) => a.order - b.order)[0];
       if (firstColumn) {
         await handleBlockDataUpdate(toBlockId, {
-          cards: [...toData.cards, { ...card, columnId: firstColumn.id, updatedAt: new Date().toISOString() }]
+          cards: [...toData.cards, { ...card, columnId: firstColumn.id, title: card.title || 'Untitled', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
         });
       }
     } else if (toBlock.type === 'table') {
@@ -1232,7 +1233,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
             data={blockData as KanbanBlockData}
             onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)}
             connectedBlocks={connectedBlockIds}
-            onCardMoveToBlock={(card, targetBlockId) => handleCardMoveBetweenBlocks(block.id, targetBlockId, card)}
+            onCardMoveToBlock={(card, targetBlockId) => handleCardMoveBetweenBlocks(block.id, targetBlockId, card as unknown as CardMoveData)}
             allBlocks={blocks}
           />
         );
@@ -1246,7 +1247,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
             data={blockData as TableBlockData}
             onUpdate={(updates) => handleBlockDataUpdate(block.id, updates)}
             connectedBlocks={connectedBlockIds}
-            onCardMoveToBlock={(card, targetBlockId) => handleCardMoveBetweenBlocks(block.id, targetBlockId, card)}
+            onCardMoveToBlock={(card, targetBlockId) => handleCardMoveBetweenBlocks(block.id, targetBlockId, card as unknown as CardMoveData)}
             allBlocks={blocks}
           />
         );

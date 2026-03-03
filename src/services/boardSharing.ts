@@ -10,15 +10,15 @@ import type { Block, BoardCollaborator, CollaboratorRole } from '@/types';
 // ============================================
 function mapRow(row: Record<string, unknown>): BoardCollaborator {
   return {
-    id: row.id,
-    boardId: row.board_id,
-    userId: row.user_id,
-    email: row.email,
-    role: row.role,
-    invitedBy: row.invited_by,
-    status: row.status,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    id: row.id as string,
+    boardId: row.board_id as string,
+    userId: (row.user_id as string | undefined) ?? null,
+    email: row.email as string,
+    role: row.role as CollaboratorRole,
+    invitedBy: row.invited_by as string,
+    status: row.status as 'pending' | 'accepted',
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
   };
 }
 

@@ -238,7 +238,7 @@ export function TableBlock({
                       />
                     ) : (
                       <Input
-                        value={row.cells[col.id] || ''}
+                        value={String(row.cells[col.id] ?? '')}
                         onChange={(e) => handleUpdateCell(row.id, col.id, e.target.value)}
                         className="h-7 text-xs bg-transparent border-0 px-1 hover:bg-white focus:bg-white focus:ring-1"
                       />
