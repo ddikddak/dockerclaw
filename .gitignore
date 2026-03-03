@@ -27,6 +27,9 @@ frontend/node_modules/
 # Development artifacts
 CLAUDE.md
 **/*/CLAUDE.md
-.planning/
+# Planning folder - keep only specific docs
+.planning/*
+!.planning/REFACTORING_PLAN.md
+!.planning/PHASE1_IMPLEMENTATION.md
 prisma/
 supabase/.temp/
