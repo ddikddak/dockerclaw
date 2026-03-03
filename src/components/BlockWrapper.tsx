@@ -171,6 +171,18 @@ export function BlockWrapper({
 
   // Ref to hold startDrag so handleBlockTouchStart can call it without circular dependency
   const startDragRef = useRef<((e: React.MouseEvent | React.TouchEvent) => void) | null>(null);
+  
+  // AbortControllers for cleanup on unmount
+  const dragAbortController = useRef<AbortController | null>(null);
+  const resizeAbortController = useRef<AbortController | null>(null);
+  
+  // Cleanup event listeners on unmount
+  useEffect(() => {
+    return () => {
+      dragAbortController.current?.abort();
+      resizeAbortController.current?.abort();
+    };
+  }, []);
 
   const startDrag = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (block.locked || isConnecting) return;
@@ -191,6 +203,11 @@ export function BlockWrapper({
 
     let lastClientX = clientX;
     let lastClientY = clientY;
+
+    // Cancel any previous drag listeners
+    dragAbortController.current?.abort();
+    dragAbortController.current = new AbortController();
+    const { signal } = dragAbortController.current;
 
     const handleMove = (moveE: MouseEvent | TouchEvent) => {
       if (!dragRef.current) return;
@@ -216,16 +233,13 @@ export function BlockWrapper({
       dragRef.current = null;
       setIsDragging(false);
       onDragEnd?.(lastClientX, lastClientY);
-      window.removeEventListener('mousemove', handleMove);
-      window.removeEventListener('mouseup', handleUp);
-      window.removeEventListener('touchmove', handleMove);
-      window.removeEventListener('touchend', handleUp);
+      dragAbortController.current = null;
     };
 
-    window.addEventListener('mousemove', handleMove, { passive: false });
-    window.addEventListener('mouseup', handleUp);
-    window.addEventListener('touchmove', handleMove, { passive: false });
-    window.addEventListener('touchend', handleUp);
+    window.addEventListener('mousemove', handleMove, { passive: false, signal });
+    window.addEventListener('mouseup', handleUp, { signal });
+    window.addEventListener('touchmove', handleMove, { passive: false, signal });
+    window.addEventListener('touchend', handleUp, { signal });
 
     e.preventDefault();
     e.stopPropagation();
@@ -267,6 +281,11 @@ export function BlockWrapper({
     
     setIsResizing(true);
     
+    // Cancel any previous resize listeners
+    resizeAbortController.current?.abort();
+    resizeAbortController.current = new AbortController();
+    const { signal } = resizeAbortController.current;
+    
     const handleMove = (moveE: MouseEvent | TouchEvent) => {
       if (!resizeRef.current) return;
       
@@ -287,20 +306,17 @@ export function BlockWrapper({
     const handleUp = () => {
       resizeRef.current = null;
       setIsResizing(false);
-      window.removeEventListener('mousemove', handleMove);
-      window.removeEventListener('mouseup', handleUp);
-      window.removeEventListener('touchmove', handleMove);
-      window.removeEventListener('touchend', handleUp);
+      resizeAbortController.current = null;
     };
     
-    window.addEventListener('mousemove', handleMove, { passive: false });
-    window.addEventListener('mouseup', handleUp);
-    window.addEventListener('touchmove', handleMove, { passive: false });
-    window.addEventListener('touchend', handleUp);
+    window.addEventListener('mousemove', handleMove, { passive: false, signal });
+    window.addEventListener('mouseup', handleUp, { signal });
+    window.addEventListener('touchmove', handleMove, { passive: false, signal });
+    window.addEventListener('touchend', handleUp, { signal });
     
     e.preventDefault();
     e.stopPropagation();
-  }, [block.locked, isConnecting, block.w, block.h, zoom, onUpdate]);
+  }, [block.locked, isConnecting, block.w, block.h, zoom, onUpdate, isChromeless]);
 
   // Mobile menu content
   const MobileMenuContent = (
