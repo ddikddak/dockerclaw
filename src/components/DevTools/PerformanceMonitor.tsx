@@ -4,7 +4,13 @@
 // ============================================
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { logger } from '@/lib/logger';
+
+// Simple logger fallback
+const logger = {
+  warn: (component: string, message: string, data?: unknown) => {
+    console.warn(`[${component}] ${message}`, data);
+  },
+};
 
 interface PerformanceMetrics {
   fps: number;

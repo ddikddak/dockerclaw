@@ -4,8 +4,32 @@
 // ============================================
 
 import { useState, useEffect, useRef } from 'react';
-import { logger, type LogEntry } from '@/lib/logger';
-import { getOfflineState, getSyncStatus } from '@/lib/offline';
+
+// Fallback types and mocks until Phase 4 is merged
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+interface LogEntry {
+  id: string;
+  timestamp: number;
+  level: LogLevel;
+  component: string;
+  message: string;
+  data?: unknown;
+}
+
+const mockLogger = {
+  getLogs: (): LogEntry[] => [],
+  getRecentErrors: (_limit?: number): LogEntry[] => [],
+  clear: (): void => {},
+  export: (): string => '[]',
+  subscribe: (_callback: (entry: LogEntry) => void): (() => void) => () => {},
+};
+
+const logger = typeof window !== 'undefined' && (window as unknown as { logger?: typeof mockLogger }).logger 
+  ? (window as unknown as { logger: typeof mockLogger }).logger 
+  : mockLogger;
+
+const getOfflineState = () => ({ isOnline: true, wasOffline: false, offlineSince: null, lastOnlineAt: Date.now() });
+const getSyncStatus = () => ({ isSyncing: false, lastSyncAt: null, pendingChanges: 0, error: null });
 
 export function DebugPanel() {
   // Only show in development
@@ -139,11 +163,11 @@ export function DebugPanel() {
                   <span className="ml-2 text-gray-200">
                     {log.message}
                   </span>
-                  {log.data && (
+                  {log.data ? (
                     <pre className="mt-1 ml-4 text-gray-500 overflow-x-auto">
                       {JSON.stringify(log.data, null, 2)}
                     </pre>
-                  )}
+                  ) : null}
                 </div>
               ))}
               <div ref={logsEndRef} />

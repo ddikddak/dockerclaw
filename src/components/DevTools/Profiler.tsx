@@ -4,7 +4,16 @@
 // ============================================
 
 import { Profiler as ReactProfiler, type ReactNode, type ProfilerOnRenderCallback } from 'react';
-import { logger } from '@/lib/logger';
+
+// Simple console logger fallback
+const logger = {
+  warn: (component: string, message: string, data?: unknown) => {
+    console.warn(`[${component}] ${message}`, data);
+  },
+  error: (component: string, message: string, error?: Error, data?: unknown) => {
+    console.error(`[${component}] ${message}`, error, data);
+  },
+};
 
 interface ProfilerProps {
   children: ReactNode;
