@@ -490,7 +490,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     setZoom(targetZoom);
     setPan({ x: newPanX, y: newPanY });
     onFocusBlockHandled?.();
-  }, [focusBlockId]);
+  }, [focusBlockId, blocksById, pan.x, pan.y, zoom, onFocusBlockHandled, canvasRef]);
 
   // Drag and drop state
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
