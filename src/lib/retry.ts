@@ -177,8 +177,8 @@ export const retryConfigs = {
 export function withRetryConfig<T extends (...args: unknown[]) => Promise<unknown>>(
   fn: T,
   config: RetryOptions
-): T {
-  return (async (...args: Parameters<T>): Promise<ReturnType<T>> => {
-    return withRetry(() => fn(...args), config);
-  }) as T;
+): (...args: Parameters<T>) => Promise<ReturnType<T>> {
+  return async (...args: Parameters<T>): Promise<ReturnType<T>> => {
+    return withRetry(() => fn(...args) as Promise<ReturnType<T>>, config);
+  };
 }

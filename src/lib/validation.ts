@@ -3,7 +3,7 @@
 // ============================================
 
 import { z } from 'zod';
-import type { BlockType, BlockData, ConnectionType } from '@/types';
+import type { BlockType, BlockData } from '@/types';
 
 // ============================================
 // Base Schemas
@@ -47,8 +47,8 @@ export const kanbanCardSchema = z.object({
   descriptionMarkdown: z.string().default(''),
   priority: z.enum(['P0', 'P1', 'P2', 'P3']).default('P2'),
   labels: z.array(z.string()).default([]),
-  createdAt: timestampSchema,
-  updatedAt: timestampSchema,
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
 });
 
 export const kanbanBlockSchema = z.object({
@@ -73,8 +73,8 @@ export const inboxItemSchema = z.object({
   bodyMarkdown: z.string(),
   source: z.enum(['user', 'agent']).default('user'),
   status: z.enum(['open', 'archived']).default('open'),
-  createdAt: timestampSchema,
-  archivedAt: timestampSchema.optional(),
+  createdAt: z.string().datetime(),
+  archivedAt: z.string().datetime().optional(),
 });
 
 export const inboxBlockSchema = z.object({
@@ -103,7 +103,7 @@ export const tableColumnSchema = z.object({
 
 export const tableRowSchema = z.object({
   id: z.string(),
-  cells: z.record(z.union([z.string(), z.number(), z.boolean()])),
+  cells: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
 });
 
 export const tableBlockSchema = z.object({
@@ -142,7 +142,7 @@ export const folderItemSchema = z.object({
   type: z.string(),
   title: z.string(),
   preview: z.string(),
-  createdAt: timestampSchema,
+  createdAt: z.string().datetime(),
 });
 
 export const folderBlockSchema = z.object({
@@ -183,7 +183,7 @@ export const blockSchema = z.object({
   z: z.number().int().default(0),
   locked: z.boolean().default(false),
   agentAccess: z.array(z.string()).default([]),
-  data: z.record(z.unknown()),
+  data: z.record(z.string(), z.unknown()),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
   deletedAt: timestampSchema.optional(),
@@ -213,7 +213,7 @@ export const connectionSchema = z.object({
 export const boardSchema = z.object({
   id: idSchema,
   name: z.string().min(1).max(255),
-  canvas: z.record(z.unknown()).optional(),
+  canvas: z.record(z.string(), z.unknown()).optional(),
   settings: z.object({
     agents: z.array(z.unknown()).optional(),
     connections: z.array(z.unknown()).optional(),
@@ -266,7 +266,7 @@ export function validateBlockData(type: BlockType, data: unknown): { success: tr
     return { success: true, data: validated as BlockData };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { success: false, errors: error.errors.map(e => `${e.path.join('.')}: ${e.message}`) };
+      return { success: false, errors: error.issues.map((issue: z.ZodIssue) => `${issue.path.join('.')}: ${issue.message}`) };
     }
     return { success: false, errors: ['Unknown validation error'] };
   }
@@ -278,7 +278,7 @@ export function validateBlock(block: unknown): { success: true; data: unknown } 
     return { success: true, data: validated };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { success: false, errors: error.errors.map(e => `${e.path.join('.')}: ${e.message}`) };
+      return { success: false, errors: error.issues.map((issue: z.ZodIssue) => `${issue.path.join('.')}: ${issue.message}`) };
     }
     return { success: false, errors: ['Unknown validation error'] };
   }
@@ -290,7 +290,7 @@ export function validateConnection(connection: unknown): { success: true; data: 
     return { success: true, data: validated };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { success: false, errors: error.errors.map(e => `${e.path.join('.')}: ${e.message}`) };
+      return { success: false, errors: error.issues.map((issue: z.ZodIssue) => `${issue.path.join('.')}: ${issue.message}`) };
     }
     return { success: false, errors: ['Unknown validation error'] };
   }

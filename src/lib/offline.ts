@@ -2,7 +2,7 @@
 // Offline Detection - Network status monitoring
 // ============================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { logger } from './logger';
 
 // ============================================
@@ -27,10 +27,6 @@ const listeners = new Set<(state: OfflineState) => void>();
 
 function updateState(newState: Partial<OfflineState>) {
   globalState = { ...globalState, ...newState };
-  listeners.forEach(listener => listener(globalState));
-}
-
-function notifyListeners() {
   listeners.forEach(listener => listener(globalState));
 }
 
@@ -171,9 +167,8 @@ async function executeOperation<T>(op: QueuedOperation<T>): Promise<void> {
       setTimeout(() => executeOperation(op), 1000 * op.retries);
     } else {
       op.reject(error instanceof Error ? error : new Error(String(error)));
-      logger.error('Offline', 'Operation failed after retries', {
+      logger.error('Offline', 'Operation failed after retries', error instanceof Error ? error : new Error(String(error)), {
         operationId: op.id,
-        error: error instanceof Error ? error.message : error,
       });
     }
   }
