@@ -233,6 +233,7 @@ export function BlockWrapper({
       dragRef.current = null;
       setIsDragging(false);
       onDragEnd?.(lastClientX, lastClientY);
+      dragAbortController.current?.abort();
       dragAbortController.current = null;
     };
 

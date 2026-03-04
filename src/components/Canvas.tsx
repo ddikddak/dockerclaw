@@ -976,6 +976,14 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({ bo
     setDragOverFolderId(id);
   }, []);
 
+  // Safety net: clear draggedBlockId if window loses focus
+  useEffect(() => {
+    if (!draggedBlockId) return;
+    const reset = () => { setDraggedBlockId(null); updateDragOverFolderId(null); };
+    window.addEventListener('blur', reset);
+    return () => window.removeEventListener('blur', reset);
+  }, [draggedBlockId, updateDragOverFolderId]);
+
   // Handle mouse-based drag move — hit-test folders for visual feedback (O(1) via blocksById Map)
   const handleBlockDragMove = useCallback((screenX: number, screenY: number) => {
     const canvasPos = screenToCanvas(screenX, screenY);
