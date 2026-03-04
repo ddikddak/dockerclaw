@@ -508,20 +508,32 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({ bo
   const sharedUpdateTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const sharedUpdateLatest = useRef<Map<string, Partial<Block>>>(new Map());
 
-  // Re-apply pending shared updates when blocks are reloaded externally (prevents snap-back during drag)
+  // Re-apply pending shared updates when blocks are reloaded externally (prevents snap-back during drag/typing)
   useEffect(() => {
-    if (!isSharedBoard || sharedUpdateLatest.current.size === 0) return;
+    if (!isSharedBoard) return;
+    const hasPendingPosition = sharedUpdateLatest.current.size > 0;
+    const hasPendingData = sharedDataLatest.current.size > 0;
+    if (!hasPendingPosition && !hasPendingData) return;
     let needsCorrection = false;
     const corrected = blocks.map(b => {
-      const pending = sharedUpdateLatest.current.get(b.id);
-      if (!pending) return b;
-      const xMismatch = pending.x !== undefined && b.x !== pending.x;
-      const yMismatch = pending.y !== undefined && b.y !== pending.y;
-      if (xMismatch || yMismatch) {
-        needsCorrection = true;
-        return { ...b, ...pending };
+      let correctedBlock = b;
+      // Re-apply pending position updates
+      const pendingPos = sharedUpdateLatest.current.get(b.id);
+      if (pendingPos) {
+        const xMismatch = pendingPos.x !== undefined && b.x !== pendingPos.x;
+        const yMismatch = pendingPos.y !== undefined && b.y !== pendingPos.y;
+        if (xMismatch || yMismatch) {
+          needsCorrection = true;
+          correctedBlock = { ...correctedBlock, ...pendingPos };
+        }
       }
-      return b;
+      // Re-apply pending data updates (typing in doc/text/etc.)
+      const pendingData = sharedDataLatest.current.get(b.id);
+      if (pendingData) {
+        needsCorrection = true;
+        correctedBlock = { ...correctedBlock, data: pendingData };
+      }
+      return correctedBlock;
     });
     if (needsCorrection) {
       onBlocksChange(corrected);
@@ -649,16 +661,43 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({ bo
     }
   }, [blocks, onBlocksChange, isSharedBoard]);
 
+  // Debounce shared block data writes (typing in doc/text/etc.)
+  const sharedDataTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const sharedDataLatest = useRef<Map<string, Block['data']>>(new Map());
+
   const handleBlockDataUpdate = useCallback(async (blockId: string, dataUpdates: Partial<BlockData>) => {
     const block = blocksById.get(blockId);
     if (!block) return;
-    const updatedData = { ...block.data, ...dataUpdates };
+    const prevData = sharedDataLatest.current.get(blockId) || block.data;
+    const updatedData = { ...prevData, ...dataUpdates } as Block['data'];
     // Optimistic: update UI first for responsive feel
-    onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, data: updatedData as Block['data'] } : b));
-    // Then persist
-    await (isSharedBoard ? SharedBlockService : BlockService)
-      .update(blockId, { data: updatedData as Block['data'] })
-      .catch(err => handleAsyncError('update block data', err));
+    onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, data: updatedData } : b));
+
+    if (isSharedBoard) {
+      // Debounce: accumulate data changes and flush every 300ms
+      sharedDataLatest.current.set(blockId, updatedData);
+      if (!sharedDataTimers.current.has(blockId)) {
+        sharedDataTimers.current.set(blockId, setTimeout(async () => {
+          const merged = sharedDataLatest.current.get(blockId);
+          sharedDataTimers.current.delete(blockId);
+          if (merged) {
+            SharedBlockService.update(blockId, { data: merged })
+              .then(() => {
+                // Keep pending data 500ms after write to suppress realtime echo
+                setTimeout(() => {
+                  if (sharedDataLatest.current.get(blockId) === merged) {
+                    sharedDataLatest.current.delete(blockId);
+                  }
+                }, 500);
+              })
+              .catch(err => handleAsyncError('update block data', err));
+          }
+        }, 300));
+      }
+    } else {
+      BlockService.update(blockId, { data: updatedData })
+        .catch(err => handleAsyncError('update block data', err));
+    }
   }, [blocks, blocksById, onBlocksChange, isSharedBoard]);
 
   const handleBlockDuplicate = useCallback(async (blockId: string) => {
