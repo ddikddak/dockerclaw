@@ -749,13 +749,27 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({ bo
     setPan({ x: newPanX, y: newPanY });
   }, [blocksById, pan, zoom, isMobile]);
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (rect) zoomAtPoint(zoom + delta, e.clientX - rect.left, e.clientY - rect.top);
-    }
+  // Native wheel listener (passive: false) so preventDefault works on Windows
+  // where Ctrl+Scroll is the browser zoom shortcut
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        // Normalize delta: trackpad pinch sends small fractional values,
+        // mouse wheel sends larger discrete values (often ±100-120)
+        let normalizedDelta = e.deltaY;
+        if (e.deltaMode === 1) normalizedDelta *= 16; // line mode (Firefox)
+        // Use proportional zoom for smooth trackpad, clamped for mouse wheel
+        const delta = -normalizedDelta * 0.005;
+        const clampedDelta = Math.max(-ZOOM_STEP, Math.min(ZOOM_STEP, delta));
+        const rect = el.getBoundingClientRect();
+        zoomAtPoint(zoom + clampedDelta, e.clientX - rect.left, e.clientY - rect.top);
+      }
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
   }, [zoom, zoomAtPoint]);
 
   const getPinchDistance = (touches: React.TouchList) => {
@@ -777,6 +791,14 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({ bo
   }, [isPanning, panStart, panStartPos]);
 
   const handlePanEnd = useCallback(() => setIsPanning(false), []);
+
+  // Window-level mouseup ensures panning always stops even if mouse leaves canvas/browser
+  useEffect(() => {
+    if (!isPanning) return;
+    const onMouseUp = () => setIsPanning(false);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => window.removeEventListener('mouseup', onMouseUp);
+  }, [isPanning]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // Pan when clicking anywhere that isn't inside a block or controls
@@ -1303,7 +1325,7 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({ bo
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onWheel={handleWheel}
+
         onDrop={handleCanvasDrop}
         onDragOver={handleCanvasDragOver}
       >
