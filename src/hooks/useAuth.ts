@@ -12,8 +12,7 @@ export interface AuthState {
   isLoading: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-  signInWithGitHub: () => Promise<void>;
+
   signOut: () => Promise<void>;
 }
 
@@ -56,17 +55,6 @@ export function useAuth(): AuthState {
     if (error) throw error;
   }, []);
 
-  const signInWithGoogle = useCallback(async () => {
-    if (!supabase) return;
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
-    if (error) throw error;
-  }, []);
-
-  const signInWithGitHub = useCallback(async () => {
-    if (!supabase) return;
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'github' });
-    if (error) throw error;
-  }, []);
 
   const signOut = useCallback(async () => {
     if (!supabase) return;
@@ -80,8 +68,7 @@ export function useAuth(): AuthState {
     isLoading,
     signInWithEmail,
     signUpWithEmail,
-    signInWithGoogle,
-    signInWithGitHub,
+
     signOut,
   };
 }
