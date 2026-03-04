@@ -7,7 +7,7 @@ import { BlockWrapper } from './BlockWrapper';
 import { DocBlock, KanbanBlock, InboxBlock, ChecklistBlock, TableBlock, TextBlock, FolderBlock, ImageBlock, HeadingBlock } from './blocks';
 import { BlockService } from '@/services/db';
 import { SharedBlockService } from '@/services/boardSharing';
-import { ZoomIn, ZoomOut, Maximize, Move, Link2, Unlink, Users, Folder, Grid3X3, List, X } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Move, Link2, Unlink, Users, Folder, Grid3X3, List, X, Mouse } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -409,6 +409,7 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({ bo
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [scrollToZoom, setScrollToZoom] = useState(() => localStorage.getItem('dockerclaw_scrollToZoom') === 'true');
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [panStartPos, setPanStartPos] = useState({ x: 0, y: 0 });
   
@@ -755,22 +756,22 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({ bo
     const el = canvasRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        // Normalize delta: trackpad pinch sends small fractional values,
-        // mouse wheel sends larger discrete values (often ±100-120)
-        let normalizedDelta = e.deltaY;
-        if (e.deltaMode === 1) normalizedDelta *= 16; // line mode (Firefox)
-        // Use proportional zoom for smooth trackpad, clamped for mouse wheel
-        const delta = -normalizedDelta * 0.005;
-        const clampedDelta = Math.max(-ZOOM_STEP, Math.min(ZOOM_STEP, delta));
-        const rect = el.getBoundingClientRect();
-        zoomAtPoint(zoom + clampedDelta, e.clientX - rect.left, e.clientY - rect.top);
-      }
+      const shouldZoom = scrollToZoom || e.ctrlKey || e.metaKey;
+      if (!shouldZoom) return;
+      e.preventDefault();
+      // Normalize delta: trackpad pinch sends small fractional values,
+      // mouse wheel sends larger discrete values (often ±100-120)
+      let normalizedDelta = e.deltaY;
+      if (e.deltaMode === 1) normalizedDelta *= 16; // line mode (Firefox)
+      // Use proportional zoom for smooth trackpad, clamped for mouse wheel
+      const delta = -normalizedDelta * 0.005;
+      const clampedDelta = Math.max(-ZOOM_STEP, Math.min(ZOOM_STEP, delta));
+      const rect = el.getBoundingClientRect();
+      zoomAtPoint(zoom + clampedDelta, e.clientX - rect.left, e.clientY - rect.top);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [zoom, zoomAtPoint]);
+  }, [zoom, zoomAtPoint, scrollToZoom]);
 
   const getPinchDistance = (touches: React.TouchList) => {
     if (touches.length < 2) return 0;
@@ -1422,6 +1423,20 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({ bo
             <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-gray-100" onClick={handleResetZoom} title="Reset view">
               <Maximize className="w-4 h-4" />
             </Button>
+            <div className="border-t border-gray-200" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-9 w-9 ${scrollToZoom ? 'bg-blue-100 text-blue-600 hover:bg-blue-200' : 'hover:bg-gray-100'}`}
+              onClick={() => {
+                const next = !scrollToZoom;
+                setScrollToZoom(next);
+                localStorage.setItem('dockerclaw_scrollToZoom', String(next));
+              }}
+              title={scrollToZoom ? 'Scroll to zoom (on)' : 'Scroll to zoom (off)'}
+            >
+              <Mouse className="w-4 h-4" />
+            </Button>
           </div>
 
           <div className="canvas-controls absolute top-4 right-4 flex flex-col gap-2 bg-white/95 backdrop-blur-sm rounded-xl shadow-xl border border-gray-200 p-2 z-50">
@@ -1459,7 +1474,7 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({ bo
 
           <div className="canvas-controls absolute bottom-4 left-4 flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 px-4 py-2.5 text-xs text-gray-500 z-50">
             <Move className="w-4 h-4" />
-            <span>Drag to pan · Pinch to zoom · Ctrl+Scroll to zoom</span>
+            <span>Drag to pan · Pinch to zoom · {scrollToZoom ? 'Scroll to zoom' : 'Ctrl+Scroll to zoom'}</span>
           </div>
         </>
       )}
