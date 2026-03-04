@@ -12,7 +12,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { BoardSelector } from '@/components/BoardSelector';
 import { Toolbar } from '@/components/Toolbar';
-import { Canvas } from '@/components/Canvas';
+import { Canvas, type CanvasHandle } from '@/components/Canvas';
 import { createDefaultBlockData, DEFAULT_BLOCK_SIZES } from '@/lib/blockDefaults';
 import { mapRemoteBlock } from '@/lib/mappers';
 import { logger } from '@/lib/logger';
@@ -46,6 +46,7 @@ function App() {
   const [localBoardCount, setLocalBoardCount] = useState(0);
   const prevUserId = useRef<string | null>(null);
   const currentBoardIdRef = useRef<string | null>(null);
+  const canvasRef = useRef<CanvasHandle>(null);
 
   // Warn before leaving when a board is open
   useEffect(() => {
@@ -407,8 +408,9 @@ function App() {
 
     try {
       const defaultSize = DEFAULT_BLOCK_SIZES[type];
-      const viewportX = 300;
-      const viewportY = 200;
+      const center = canvasRef.current?.getViewportCenter();
+      const viewportX = center?.x ?? 300;
+      const viewportY = center?.y ?? 200;
       const shared = sharedBoards.find(sb => sb.board.id === currentBoardId);
 
       const blockData = {
@@ -544,6 +546,7 @@ function App() {
             />
             <div className="flex-1 min-h-0">
               <Canvas
+                ref={canvasRef}
                 board={currentBoard}
                 blocks={blocks}
                 onBlocksChange={setBlocks}

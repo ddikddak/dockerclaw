@@ -2,7 +2,7 @@
 // Canvas Component - Infinite canvas with pan/zoom and bezier connections
 // ============================================
 
-import { useRef, useCallback, useState, useEffect, useMemo, memo } from 'react';
+import { useRef, useCallback, useState, useEffect, useMemo, memo, forwardRef, useImperativeHandle } from 'react';
 import { BlockWrapper } from './BlockWrapper';
 import { DocBlock, KanbanBlock, InboxBlock, ChecklistBlock, TableBlock, TextBlock, FolderBlock, ImageBlock, HeadingBlock } from './blocks';
 import { BlockService } from '@/services/db';
@@ -50,6 +50,10 @@ interface CanvasProps {
   onFocusBlockHandled?: () => void;
   connections?: Connection[];
   onConnectionsChange?: (connections: Connection[]) => void;
+}
+
+export interface CanvasHandle {
+  getViewportCenter: () => { x: number; y: number };
 }
 
 const DEFAULT_ZOOM = 1;
@@ -390,7 +394,7 @@ const FullScreenBlockView = memo(function FullScreenBlockView({
   );
 });
 
-export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsChange, onAddImageBlock, permission = 'owner', isCollaborative = false, isSharedBoard = false, boardOwnerId, onOnlineUsersChange, isAgentDialogOpen: externalAgentDialogOpen, onAgentDialogOpenChange, focusBlockId, onFocusBlockHandled, connections: externalConnections, onConnectionsChange }: CanvasProps) {
+export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsChange, onAddImageBlock, permission = 'owner', isCollaborative = false, isSharedBoard = false, boardOwnerId, onOnlineUsersChange, isAgentDialogOpen: externalAgentDialogOpen, onAgentDialogOpenChange, focusBlockId, onFocusBlockHandled, connections: externalConnections, onConnectionsChange }, ref) {
   const { user } = useAuthContext();
   const isMobile = useIsMobile();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -640,11 +644,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
         }, 200));
       }
     } else {
-      try {
-        await BlockService.update(blockId, updates);
-      } catch (err) {
-        handleAsyncError('update block', err);
-      }
+      await BlockService.update(blockId, updates).catch(err => handleAsyncError('update block', err));
     }
   }, [blocks, onBlocksChange, isSharedBoard]);
 
@@ -655,15 +655,9 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     // Optimistic: update UI first for responsive feel
     onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, data: updatedData as Block['data'] } : b));
     // Then persist
-    try {
-      if (isSharedBoard) {
-        await SharedBlockService.update(blockId, { data: updatedData as Block['data'] });
-      } else {
-        await BlockService.update(blockId, { data: updatedData as Block['data'] });
-      }
-    } catch (err) {
-      handleAsyncError('update block data', err);
-    }
+    await (isSharedBoard ? SharedBlockService : BlockService)
+      .update(blockId, { data: updatedData as Block['data'] })
+      .catch(err => handleAsyncError('update block data', err));
   }, [blocks, blocksById, onBlocksChange, isSharedBoard]);
 
   const handleBlockDuplicate = useCallback(async (blockId: string) => {
@@ -671,44 +665,29 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       if (isSharedBoard && boardOwnerId) {
         const block = blocksById.get(blockId);
         if (!block) return;
-        const newBlock = await SharedBlockService.duplicate(block, boardOwnerId);
-        onBlocksChange([...blocks, newBlock]);
+        onBlocksChange([...blocks, await SharedBlockService.duplicate(block, boardOwnerId)]);
       } else {
-        const newBlock = await BlockService.duplicate(blockId);
-        onBlocksChange([...blocks, newBlock]);
+        onBlocksChange([...blocks, await BlockService.duplicate(blockId)]);
       }
-    } catch (err) {
-      handleAsyncError('duplicate block', err);
-    }
+    } catch (err) { handleAsyncError('duplicate block', err); }
   }, [blocks, blocksById, onBlocksChange, isSharedBoard, boardOwnerId]);
 
   const handleBlockDelete = useCallback(async (blockId: string) => {
     try {
-      if (isSharedBoard) {
-        await SharedBlockService.delete(blockId);
-      } else {
-        await BlockService.delete(blockId);
-      }
+      await (isSharedBoard ? SharedBlockService : BlockService).delete(blockId);
       onBlocksChange(blocks.filter(b => b.id !== blockId));
       setConnections(prev => prev.filter(c => c.fromBlockId !== blockId && c.toBlockId !== blockId));
-    } catch (err) {
-      handleAsyncError('delete block', err);
-    }
+    } catch (err) { handleAsyncError('delete block', err); }
   }, [blocks, onBlocksChange, isSharedBoard]);
 
   const handleBringToFront = useCallback(async (blockId: string) => {
-    const newZIndex = maxZIndex + 1;
+    const z = maxZIndex + 1;
     try {
-      if (isSharedBoard) {
-        await SharedBlockService.update(blockId, { z: newZIndex } as Partial<Block>);
-      } else {
-        await BlockService.updateZIndex(blockId, newZIndex);
-      }
-      setMaxZIndex(newZIndex);
-      onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, z: newZIndex } : b));
-    } catch (err) {
-      handleAsyncError('bring block to front', err);
-    }
+      if (isSharedBoard) await SharedBlockService.update(blockId, { z } as Partial<Block>);
+      else await BlockService.updateZIndex(blockId, z);
+      setMaxZIndex(z);
+      onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, z } : b));
+    } catch (err) { handleAsyncError('bring block to front', err); }
   }, [blocks, maxZIndex, onBlocksChange, isSharedBoard]);
 
   const getCanvasCenter = useCallback(() => {
@@ -870,6 +849,13 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     };
   }, [pan, zoom]);
 
+  useImperativeHandle(ref, () => ({
+    getViewportCenter: () => screenToCanvas(
+      (canvasRef.current?.clientWidth || 0) / 2,
+      (canvasRef.current?.clientHeight || 0) / 2
+    ),
+  }), [screenToCanvas]);
+
   const handleStartConnection = useCallback((blockId: string) => {
     if (!isConnecting) {
       setIsConnecting(true);
@@ -967,8 +953,7 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
     setDragOverFolderId(id);
   }, []);
 
-  // Handle mouse-based drag move — hit-test folders for visual feedback
-  // Uses blocksById Map for O(1) per-block lookup; iterates only folder blocks.
+  // Handle mouse-based drag move — hit-test folders for visual feedback (O(1) via blocksById Map)
   const handleBlockDragMove = useCallback((screenX: number, screenY: number) => {
     const canvasPos = screenToCanvas(screenX, screenY);
     let hoveredFolderId: string | null = null;
@@ -1000,24 +985,11 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       const updatedFolderData = { ...folderBlock.data, items: [...(folderData.items || []), folderItem] } as BlockData;
 
       try {
-        // Persist both changes using the correct service
-        if (isSharedBoard) {
-          await SharedBlockService.update(folderId, { data: updatedFolderData });
-          await SharedBlockService.delete(droppedBlockId);
-        } else {
-          await BlockService.update(folderId, { data: updatedFolderData });
-          await BlockService.delete(droppedBlockId);
-        }
-
-        // Single state update: update folder data AND remove dragged block
-        onBlocksChange(
-          blocks
-            .map(b => b.id === folderId ? { ...b, data: updatedFolderData } : b)
-            .filter(b => b.id !== droppedBlockId)
-        );
-      } catch (err) {
-        handleAsyncError('drop block into folder', err);
-      }
+        const svc = isSharedBoard ? SharedBlockService : BlockService;
+        await svc.update(folderId, { data: updatedFolderData });
+        await svc.delete(droppedBlockId);
+        onBlocksChange(blocks.map(b => b.id === folderId ? { ...b, data: updatedFolderData } : b).filter(b => b.id !== droppedBlockId));
+      } catch (err) { handleAsyncError('drop block into folder', err); }
     }
 
     setDraggedBlockId(null);
@@ -1077,18 +1049,12 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
           ...folderBlock.data,
           items: (folderData.items || []).filter((i: FolderItem) => i.id !== item.id),
         } as BlockData;
-        if (isSharedBoard) {
-          await SharedBlockService.update(folderId, { data: updatedFolderData });
-        } else {
-          await BlockService.update(folderId, { data: updatedFolderData });
-        }
+        await (isSharedBoard ? SharedBlockService : BlockService).update(folderId, { data: updatedFolderData });
         updatedBlocks = blocks.map(b => b.id === folderId ? { ...b, data: updatedFolderData } : b);
       }
 
       onBlocksChange([...updatedBlocks, newBlock]);
-    } catch (err) {
-      handleAsyncError('drag block out of folder', err);
-    }
+    } catch (err) { handleAsyncError('drag block out of folder', err); }
   }, [board.id, blocks, blocksById, maxZIndex, onBlocksChange, screenToCanvas, isSharedBoard, boardOwnerId]);
 
   // Handle canvas drop for folder items dragged out, blocks dropped on folders, and image file drops
@@ -1559,4 +1525,4 @@ export function Canvas({ board, blocks, onBlocksChange, agents = [], onAgentsCha
       </Dialog>
     </div>
   );
-}
+});
