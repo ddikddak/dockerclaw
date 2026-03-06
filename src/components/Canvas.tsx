@@ -705,7 +705,7 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({ bo
       if (isSharedBoard && boardOwnerId) {
         const block = blocksById.get(blockId);
         if (!block) return;
-        onBlocksChange([...blocks, await SharedBlockService.duplicate(block, boardOwnerId)]);
+        onBlocksChange([...blocks, await SharedBlockService.duplicate(block)]);
       } else {
         onBlocksChange([...blocks, await BlockService.duplicate(blockId)]);
       }
@@ -1105,7 +1105,7 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({ bo
 
     try {
       const newBlock = isSharedBoard && boardOwnerId
-        ? await SharedBlockService.create(blockData, boardOwnerId)
+        ? await SharedBlockService.create(blockData)
         : await BlockService.create(blockData);
 
       setMaxZIndex(prev => prev + 1);

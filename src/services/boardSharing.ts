@@ -168,12 +168,16 @@ export const BoardSharingService = {
 // Shared Block Service - Direct Supabase ops for shared boards
 // ============================================
 export const SharedBlockService = {
-  async create(block: Omit<Block, 'createdAt' | 'updatedAt'>, ownerId: string): Promise<Block> {
+  async create(block: Omit<Block, 'createdAt' | 'updatedAt'>): Promise<Block> {
     if (!supabase) throw new Error('Supabase not configured');
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const now = new Date().toISOString();
     const row = {
       id: block.id,
-      user_id: ownerId,
+      user_id: user.id,
       board_id: block.boardId,
       type: block.type,
       x: block.x,
@@ -223,13 +227,13 @@ export const SharedBlockService = {
     if (error) throw error;
   },
 
-  async duplicate(block: Block, ownerId: string): Promise<Block> {
+  async duplicate(block: Block): Promise<Block> {
     return this.create({
       ...block,
       id: crypto.randomUUID(),
       x: block.x + 20,
       y: block.y + 20,
       z: (block.z || 0) + 1,
-    }, ownerId);
+    });
   },
 };

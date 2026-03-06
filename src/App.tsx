@@ -443,7 +443,7 @@ function App() {
       };
 
       const newBlock = shared
-        ? await SharedBlockService.create(blockData, shared.ownerId)
+        ? await SharedBlockService.create(blockData)
         : await BlockService.create(blockData);
 
       setBlocks((prev) => [...prev, newBlock]);
@@ -475,7 +475,7 @@ function App() {
       };
 
       const newBlock = shared
-        ? await SharedBlockService.create(blockData, shared.ownerId)
+        ? await SharedBlockService.create(blockData)
         : await BlockService.create(blockData);
 
       setBlocks((prev) => [...prev, newBlock]);
