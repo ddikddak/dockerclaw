@@ -124,9 +124,23 @@ function App() {
     } else if (!user && prevUserId.current) {
       prevUserId.current = null;
       syncService.stop();
+
+      // Clear all local data so sign-out behaves like a fresh browser
+      db.boards.clear();
+      db.blocks.clear();
+      db._syncQueue.clear();
+      localStorage.removeItem('dockerclaw_lastSyncedAt');
+
+      // Reset all in-memory state
+      setBoards([]);
+      setBlocks([]);
+      setCurrentBoardId(null);
       setSharedBoards([]);
       setPendingInvites([]);
       setSyncDialogOpen(false);
+      setConnections([]);
+      setAgents([]);
+      setOnlineUsers([]);
     }
   }, [user]);
 
