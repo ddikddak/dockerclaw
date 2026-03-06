@@ -15,7 +15,7 @@ const corsHeaders = {
 
 type AgentPermission = 'read' | 'write' | 'delete';
 type BlockType = 'doc' | 'text' | 'kanban' | 'checklist' | 'table' | 'inbox' | 'folder' | 'heading' | 'image';
-type ExecuteAction = 'list_boards' | 'list_blocks' | 'get_block' | 'create_block' | 'update_block' | 'delete_block' | 'clear_board' | 'move_to_folder' | 'move_from_folder';
+type ExecuteAction = 'list_boards' | 'list_blocks' | 'get_block' | 'create_block' | 'update_block' | 'delete_block' | 'clear_board' | 'move_to_folder' | 'move_from_folder' | 'get_board_map' | 'update_board_meta';
 
 interface ChecklistItem {
   id: string;
@@ -34,6 +34,8 @@ const actionPermissions: Record<ExecuteAction, AgentPermission> = {
   clear_board: 'write',
   move_to_folder: 'write',
   move_from_folder: 'write',
+  get_board_map: 'read',
+  update_board_meta: 'write',
 };
 
 const defaultSizes: Record<BlockType, { w: number; h: number }> = {
@@ -98,6 +100,69 @@ function getBlockPreview(type: string, data: Record<string, unknown>): string {
   }
 }
 
+// ============================================
+// Block Type Metadata - Static reference for AI agents
+// Included in get_board_map response so agents understand the block vocabulary
+// ============================================
+const blockTypeMetadata: Record<string, { label: string; description: string; capabilities: string[]; dataFields: string[] }> = {
+  doc: {
+    label: 'Document',
+    description: 'Rich text document with markdown, code blocks, mermaid diagrams, and tables. Supports task lists and syntax highlighting.',
+    capabilities: ['read', 'write', 'append'],
+    dataFields: ['title', 'contentMarkdown', 'tags'],
+  },
+  kanban: {
+    label: 'Kanban Board',
+    description: 'Task board with customizable columns and draggable cards. Cards support priority (P0-P3), labels, and markdown descriptions.',
+    capabilities: ['read', 'write'],
+    dataFields: ['columns', 'cards', 'properties'],
+  },
+  inbox: {
+    label: 'Inbox',
+    description: 'Message inbox for capturing ideas and agent outputs. Items have source (agent/user) and status (open/archived). Can convert items to tasks or documents.',
+    capabilities: ['read', 'write'],
+    dataFields: ['items'],
+  },
+  checklist: {
+    label: 'Checklist',
+    description: 'Task checklist with checkable items. Supports add, check, uncheck, toggle, remove, and rename operations via checklist_action param.',
+    capabilities: ['read', 'write', 'checklist_action'],
+    dataFields: ['title', 'items'],
+  },
+  table: {
+    label: 'Table',
+    description: 'Structured data table with typed columns (text, number, date, checkbox). Rows contain cell values keyed by column ID.',
+    capabilities: ['read', 'write'],
+    dataFields: ['columns', 'rows'],
+  },
+  text: {
+    label: 'Note',
+    description: 'Simple text note with customizable font size and color. Good for quick annotations and sticky notes.',
+    capabilities: ['read', 'write'],
+    dataFields: ['content', 'fontSize', 'color'],
+  },
+  heading: {
+    label: 'Heading',
+    description: 'Canvas heading/label for visual organization. Renders without card borders (chromeless). Supports h1/h2/h3/body levels with styling.',
+    capabilities: ['read', 'write'],
+    dataFields: ['content', 'level', 'fontSize', 'fontFamily', 'bold', 'italic', 'underline', 'color', 'align'],
+  },
+  image: {
+    label: 'Image',
+    description: 'Image display with optional caption. Images stored as base64. Supports JPG, PNG, WebP, GIF.',
+    capabilities: ['read', 'write'],
+    dataFields: ['base64', 'caption', 'fileName'],
+  },
+  folder: {
+    label: 'Folder',
+    description: 'Container for organizing blocks. Blocks can be moved in/out via move_to_folder and move_from_folder actions. Grid or list view modes.',
+    capabilities: ['read', 'move_to_folder', 'move_from_folder'],
+    dataFields: ['title', 'items', 'viewMode'],
+  },
+};
+
+const validPurposes = ['input', 'process', 'output', 'reference', 'dashboard'];
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -118,7 +183,7 @@ serve(async (req) => {
     const action = body?.action as ExecuteAction | undefined;
     const params = (body?.params ?? {}) as Record<string, unknown>;
 
-    const validActions: ExecuteAction[] = ['list_boards', 'list_blocks', 'get_block', 'create_block', 'update_block', 'delete_block', 'clear_board', 'move_to_folder', 'move_from_folder'];
+    const validActions: ExecuteAction[] = ['list_boards', 'list_blocks', 'get_block', 'create_block', 'update_block', 'delete_block', 'clear_board', 'move_to_folder', 'move_from_folder', 'get_board_map', 'update_board_meta'];
     if (!action || !validActions.includes(action)) {
       return jsonResponse({ error: `Invalid action. Must be one of: ${validActions.join(', ')}` }, 400);
     }
@@ -209,6 +274,128 @@ serve(async (req) => {
       }
     }
 
+    // ---- get_board_map: structured board overview for AI agents ----
+    if (action === 'get_board_map') {
+      const { data: board, error: boardError } = await supabaseAdmin
+        .from('boards')
+        .select('id, name, settings, created_at, updated_at')
+        .eq('id', boardId!)
+        .eq('user_id', keyData.user_id)
+        .single();
+
+      if (boardError || !board) {
+        return jsonResponse({ error: 'Board not found' }, 404);
+      }
+
+      const { data: blocks, error: blocksError } = await supabaseAdmin
+        .from('blocks')
+        .select('id, type, x, y, w, h, z, locked, agent_access, description, purpose, semantic_tags, data, created_at, updated_at')
+        .eq('board_id', boardId!)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true });
+
+      if (blocksError) {
+        return jsonResponse({ error: 'Failed to fetch blocks', details: blocksError.message }, 500);
+      }
+
+      const boardSettings = (board.settings || {}) as Record<string, unknown>;
+      const connections = Array.isArray(boardSettings.connections) ? boardSettings.connections as Array<Record<string, unknown>> : [];
+
+      const blockSummaries = (blocks || []).map((block: Record<string, unknown>) => {
+        const blockId = block.id as string;
+        const type = block.type as string;
+        const blockConnections = connections.filter(
+          (c) => c.fromBlockId === blockId
+        );
+
+        return {
+          id: blockId,
+          type,
+          label: blockTypeMetadata[type]?.label || type,
+          description: block.description || null,
+          purpose: block.purpose || null,
+          semantic_tags: block.semantic_tags || [],
+          position: { x: block.x, y: block.y },
+          size: { w: block.w, h: block.h },
+          connections: blockConnections.map((c) => ({
+            toBlockId: c.toBlockId,
+            type: c.type,
+            label: c.label || null,
+          })),
+          agent_access: block.agent_access || [],
+        };
+      });
+
+      const blocksByType: Record<string, number> = {};
+      for (const block of blocks || []) {
+        const type = block.type as string;
+        blocksByType[type] = (blocksByType[type] || 0) + 1;
+      }
+
+      await touchKeyUsage();
+      return jsonResponse({
+        success: true,
+        action,
+        board: {
+          id: board.id,
+          name: board.name,
+          description: boardSettings.description || null,
+          objectives: boardSettings.objectives || [],
+        },
+        blockTypes: blockTypeMetadata,
+        blocks: blockSummaries,
+        connections,
+        stats: {
+          totalBlocks: (blocks || []).length,
+          blocksByType,
+          totalConnections: connections.length,
+        },
+      });
+    }
+
+    // ---- update_board_meta: set board description and objectives ----
+    if (action === 'update_board_meta') {
+      const { data: board, error: boardError } = await supabaseAdmin
+        .from('boards')
+        .select('id, settings')
+        .eq('id', boardId!)
+        .eq('user_id', keyData.user_id)
+        .single();
+
+      if (boardError || !board) {
+        return jsonResponse({ error: 'Board not found' }, 404);
+      }
+
+      const currentSettings = (board.settings || {}) as Record<string, unknown>;
+      const updatedSettings = { ...currentSettings };
+
+      if (typeof params?.description === 'string') {
+        updatedSettings.description = params.description;
+      }
+      if (Array.isArray(params?.objectives)) {
+        updatedSettings.objectives = params.objectives;
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from('boards')
+        .update({ settings: updatedSettings, updated_at: nowIso })
+        .eq('id', boardId!)
+        .eq('user_id', keyData.user_id);
+
+      if (updateError) {
+        return jsonResponse({ error: 'Failed to update board metadata', details: updateError.message }, 500);
+      }
+
+      await touchKeyUsage();
+      return jsonResponse({
+        success: true,
+        action,
+        board_id: boardId,
+        description: updatedSettings.description || null,
+        objectives: updatedSettings.objectives || [],
+      });
+    }
+
     // ---- Block operations below — boardId is guaranteed non-empty ----
 
     if (action === 'list_blocks') {
@@ -217,7 +404,7 @@ serve(async (req) => {
 
       let query = supabaseAdmin
         .from('blocks')
-        .select('id, type, x, y, w, h, z, locked, agent_access, data, created_at, updated_at, deleted_at')
+        .select('id, type, x, y, w, h, z, locked, agent_access, description, purpose, semantic_tags, data, created_at, updated_at, deleted_at')
         .eq('board_id', boardId!)
         .order('created_at', { ascending: false });
 
@@ -299,22 +486,34 @@ serve(async (req) => {
         blockData.tags = tags;
       }
 
+      // Build insert payload with optional metadata
+      const insertPayload: Record<string, unknown> = {
+        id: crypto.randomUUID(),
+        user_id: keyData.user_id,
+        board_id: boardId!,
+        type,
+        x,
+        y,
+        w,
+        h,
+        z: newZ,
+        data: blockData,
+        created_at: nowIso,
+        updated_at: nowIso,
+      };
+      if (typeof params?.description === 'string') {
+        insertPayload.description = params.description;
+      }
+      if (typeof params?.purpose === 'string' && validPurposes.includes(params.purpose as string)) {
+        insertPayload.purpose = params.purpose;
+      }
+      if (Array.isArray(params?.semantic_tags)) {
+        insertPayload.semantic_tags = params.semantic_tags;
+      }
+
       const { data: block, error: createError } = await supabaseAdmin
         .from('blocks')
-        .insert({
-          id: crypto.randomUUID(),
-          user_id: keyData.user_id,
-          board_id: boardId!,
-          type,
-          x,
-          y,
-          w,
-          h,
-          z: newZ,
-          data: blockData,
-          created_at: nowIso,
-          updated_at: nowIso,
-        })
+        .insert(insertPayload)
         .select()
         .single();
 
@@ -355,6 +554,18 @@ serve(async (req) => {
       }
       if (typeof params?.locked === 'boolean') {
         updatePayload.locked = params.locked;
+      }
+      if (typeof params?.description === 'string') {
+        updatePayload.description = params.description;
+      }
+      if (typeof params?.purpose === 'string') {
+        if (!validPurposes.includes(params.purpose as string)) {
+          return jsonResponse({ error: `Invalid purpose. Must be one of: ${validPurposes.join(', ')}` }, 400);
+        }
+        updatePayload.purpose = params.purpose;
+      }
+      if (Array.isArray(params?.semantic_tags)) {
+        updatePayload.semantic_tags = params.semantic_tags;
       }
 
       const currentData = (currentBlock.data ?? {}) as Record<string, unknown>;

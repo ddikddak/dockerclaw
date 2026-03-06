@@ -4,6 +4,8 @@
 
 export type BlockType = 'doc' | 'kanban' | 'inbox' | 'checklist' | 'table' | 'text' | 'folder' | 'image' | 'heading';
 
+export type BlockPurpose = 'input' | 'process' | 'output' | 'reference' | 'dashboard';
+
 // ============================================
 // Agent
 // ============================================
@@ -45,6 +47,8 @@ export interface Board {
     agents?: Agent[];
     connections?: Connection[];
     agentApiKeys?: AgentApiKeyRef[];
+    description?: string; // Board-level description for AI agents
+    objectives?: string[]; // High-level goals for the board
   };
 }
 
@@ -62,6 +66,9 @@ export interface Block {
   z?: number;
   locked?: boolean;
   agentAccess?: string[]; // Agent IDs that have access to this block
+  description?: string; // AI agent-facing description of this block's purpose
+  purpose?: BlockPurpose; // Semantic role: input, process, output, reference, dashboard
+  semanticTags?: string[]; // Freeform tags for categorization (e.g., ['planning', 'sprint-1'])
   data: BlockData;
   createdAt: string;
   updatedAt: string;
@@ -267,6 +274,9 @@ export interface CreateBlockDTO {
   w: number;
   h: number;
   data?: Partial<BlockData>;
+  description?: string;
+  purpose?: BlockPurpose;
+  semanticTags?: string[];
 }
 
 export interface UpdateBlockDTO {
@@ -278,6 +288,9 @@ export interface UpdateBlockDTO {
   locked?: boolean;
   agentAccess?: string[];
   data?: Partial<BlockData>;
+  description?: string;
+  purpose?: BlockPurpose;
+  semanticTags?: string[];
 }
 
 // ============================================

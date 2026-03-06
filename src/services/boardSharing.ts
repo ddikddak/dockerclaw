@@ -183,6 +183,9 @@ export const SharedBlockService = {
       z: block.z || 0,
       locked: block.locked || false,
       agent_access: block.agentAccess || [],
+      description: block.description || null,
+      purpose: block.purpose || null,
+      semantic_tags: block.semanticTags || [],
       data: block.data,
       created_at: now,
       updated_at: now,
@@ -203,6 +206,9 @@ export const SharedBlockService = {
     if (updates.locked !== undefined) supabaseUpdates.locked = updates.locked;
     if (updates.data !== undefined) supabaseUpdates.data = updates.data;
     if (updates.agentAccess !== undefined) supabaseUpdates.agent_access = updates.agentAccess;
+    if (updates.description !== undefined) supabaseUpdates.description = updates.description;
+    if (updates.purpose !== undefined) supabaseUpdates.purpose = updates.purpose;
+    if (updates.semanticTags !== undefined) supabaseUpdates.semantic_tags = updates.semanticTags;
 
     const { error } = await supabase.from('blocks').update(supabaseUpdates).eq('id', blockId);
     if (error) throw error;

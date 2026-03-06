@@ -26,6 +26,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Plus,
   FileText,
@@ -45,10 +46,11 @@ import {
   Crosshair,
   Menu,
 } from 'lucide-react';
-import type { Block, BlockType, BoardPermission, Agent, Board, DocBlockData, KanbanBlockData, InboxBlockData, ChecklistBlockData, TableBlockData, TextBlockData, HeadingBlockData, FolderBlockData, ImageBlockData } from '@/types';
+import type { Block, BlockType, BlockPurpose, BoardPermission, Agent, Board, DocBlockData, KanbanBlockData, InboxBlockData, ChecklistBlockData, TableBlockData, TextBlockData, HeadingBlockData, FolderBlockData, ImageBlockData } from '@/types';
 import type { PresenceUser } from '@/services/collaboration';
 import { ShareDialog } from '@/components/ShareDialog';
 import { AgentApiSettings } from '@/components/AgentApiSettings';
+import { BoardMapSettings } from '@/components/BoardMapSettings';
 
 interface ToolbarProps {
   boardName: string;
@@ -65,6 +67,7 @@ interface ToolbarProps {
   onOpenSidebar?: () => void;
   boardSettings?: Board['settings'];
   onUpdateBoardSettings?: (updates: Partial<NonNullable<Board['settings']>>) => Promise<void>;
+  onBlockMetaUpdate?: (blockId: string, updates: { description?: string; purpose?: BlockPurpose; semanticTags?: string[] }) => void;
 }
 
 const BLOCK_TYPES: { type: BlockType; label: string; icon: React.ReactNode; description: string }[] = [
@@ -94,6 +97,7 @@ export function Toolbar({
   onOpenSidebar,
   boardSettings,
   onUpdateBoardSettings,
+  onBlockMetaUpdate,
 }: ToolbarProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(boardName);
@@ -361,53 +365,82 @@ export function Toolbar({
                 <Settings className="w-5 h-5" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-h-[85vh] overflow-y-auto">
+            <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[550px]">
               <DialogHeader>
                 <DialogTitle>Board Settings</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Board Name</label>
-                  <Input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="mt-1"
-                  />
-                </div>
-                <div className="pt-4 border-t border-gray-200">
-                  <Button
-                    variant="destructive"
-                    className="w-full"
-                    onClick={() => {
-                      if (confirm('Are you sure you want to delete this board?')) {
-                        onDeleteBoard();
+              <Tabs defaultValue="general" className="mt-2">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="general">General</TabsTrigger>
+                  <TabsTrigger value="board-map">Board Map</TabsTrigger>
+                  <TabsTrigger value="agent-api">Agent API</TabsTrigger>
+                </TabsList>
+
+                {/* General Tab */}
+                <TabsContent value="general" className="space-y-4 py-2">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Board Name</label>
+                    <Input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="pt-2">
+                    <Button
+                      className="w-full"
+                      onClick={() => {
+                        onRenameBoard(editName);
                         setIsSettingsOpen(false);
-                      }
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete Board
-                  </Button>
-                </div>
-                {onUpdateBoardSettings && (
-                  <AgentApiSettings
-                    boardId={boardId}
-                    boardSettings={boardSettings}
-                    onUpdateBoardSettings={onUpdateBoardSettings}
-                  />
-                )}
-                <div className="pt-2">
-                  <Button
-                    className="w-full"
-                    onClick={() => {
-                      onRenameBoard(editName);
-                      setIsSettingsOpen(false);
-                    }}
-                  >
-                    Save Changes
-                  </Button>
-                </div>
-              </div>
+                      }}
+                    >
+                      Save Changes
+                    </Button>
+                  </div>
+                  <div className="pt-4 border-t border-gray-200">
+                    <Button
+                      variant="destructive"
+                      className="w-full"
+                      onClick={() => {
+                        if (confirm('Are you sure you want to delete this board?')) {
+                          onDeleteBoard();
+                          setIsSettingsOpen(false);
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Board
+                    </Button>
+                  </div>
+                </TabsContent>
+
+                {/* Board Map Tab */}
+                <TabsContent value="board-map" className="py-2">
+                  {onUpdateBoardSettings && onBlockMetaUpdate ? (
+                    <BoardMapSettings
+                      boardSettings={boardSettings}
+                      onUpdateBoardSettings={onUpdateBoardSettings}
+                      blocks={blocks}
+                      onBlockMetaUpdate={onBlockMetaUpdate}
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-500 py-4">Board map is only available for board owners.</p>
+                  )}
+                </TabsContent>
+
+                {/* Agent API Tab */}
+                <TabsContent value="agent-api" className="py-2">
+                  {onUpdateBoardSettings ? (
+                    <AgentApiSettings
+                      boardId={boardId}
+                      boardSettings={boardSettings}
+                      onUpdateBoardSettings={onUpdateBoardSettings}
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-500 py-4">Agent API settings are only available for board owners.</p>
+                  )}
+                </TabsContent>
+              </Tabs>
             </DialogContent>
           </Dialog>
         </div>

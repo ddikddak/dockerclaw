@@ -32,6 +32,14 @@ class DockerClawDB extends Dexie {
       blocks: 'id, boardId, [boardId+deletedAt], type, x, y, z, createdAt, updatedAt, deletedAt',
       _syncQueue: '++id, [table+recordId], timestamp',
     });
+
+    // v4: block metadata fields (description, purpose, semanticTags)
+    // No new indexes needed — metadata is for API consumption, not local queries
+    this.version(4).stores({
+      boards: 'id, name, createdAt, updatedAt',
+      blocks: 'id, boardId, [boardId+deletedAt], type, x, y, z, createdAt, updatedAt, deletedAt',
+      _syncQueue: '++id, [table+recordId], timestamp',
+    });
   }
 }
 

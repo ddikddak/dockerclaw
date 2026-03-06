@@ -3,7 +3,7 @@
 // Single source of truth for remote <-> local transformations
 // ============================================
 
-import type { Board, Block } from '@/types';
+import type { Board, Block, BlockPurpose } from '@/types';
 
 /** Map a Supabase board row (snake_case) to local Board (camelCase) */
 export function mapRemoteBoard(row: Record<string, unknown>): Board {
@@ -30,6 +30,9 @@ export function mapRemoteBlock(row: Record<string, unknown>): Block {
     z: (row.z as number) || 0,
     locked: (row.locked as boolean) || false,
     agentAccess: (row.agent_access as string[]) || [],
+    description: (row.description as string) || undefined,
+    purpose: (row.purpose as BlockPurpose) || undefined,
+    semanticTags: (row.semantic_tags as string[]) || [],
     data: row.data as Block['data'],
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
@@ -64,6 +67,9 @@ export function blockToSupabaseRow(block: Block, userId: string) {
     z: block.z || 0,
     locked: block.locked || false,
     agent_access: block.agentAccess || [],
+    description: block.description || null,
+    purpose: block.purpose || null,
+    semantic_tags: block.semanticTags || [],
     data: block.data,
     created_at: block.createdAt,
     updated_at: block.updatedAt,

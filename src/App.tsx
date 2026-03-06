@@ -19,7 +19,7 @@ import { logger } from '@/lib/logger';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
-import type { Board, Block, BlockType, Agent, Connection, BoardPermission, BoardCollaborator, ImageBlockData } from '@/types';
+import type { Board, Block, BlockType, BlockPurpose, Agent, Connection, BoardPermission, BoardCollaborator, ImageBlockData } from '@/types';
 import type { PresenceUser } from '@/services/collaboration';
 
 interface SharedBoard {
@@ -400,6 +400,22 @@ function App() {
     );
   }, [boardsById, currentBoardId]);
 
+  const handleBlockMetaUpdate = useCallback(async (blockId: string, updates: { description?: string; purpose?: BlockPurpose; semanticTags?: string[] }) => {
+    if (!currentBoardId) return;
+    const shared = sharedBoards.find(sb => sb.board.id === currentBoardId);
+    const now = new Date().toISOString();
+
+    if (shared) {
+      await SharedBlockService.update(blockId, updates);
+    } else {
+      await BlockService.update(blockId, updates);
+    }
+
+    setBlocks(prev => prev.map(b =>
+      b.id === blockId ? { ...b, ...updates, updatedAt: now } : b
+    ));
+  }, [currentBoardId, sharedBoards]);
+
   const handleAddBlock = useCallback(async (type: BlockType, x?: number, y?: number) => {
     if (!currentBoardId) {
       toast.error('Please select a board first');
@@ -543,6 +559,7 @@ function App() {
               onOpenSidebar={() => setIsSidebarOpen(true)}
               boardSettings={currentBoard.settings}
               onUpdateBoardSettings={currentPermission === 'owner' ? handleUpdateBoardSettings : undefined}
+              onBlockMetaUpdate={currentPermission === 'owner' ? handleBlockMetaUpdate : undefined}
             />
             <div className="flex-1 min-h-0">
               <Canvas
