@@ -275,8 +275,7 @@ function App() {
         const boardBlocks = await BlockService.getByBoardId(boardId);
         setBlocks(boardBlocks);
 
-        // Background sync: catch blocks created externally (e.g. via Agent API)
-        // that exist in Supabase but not yet in local Dexie
+        // Background sync: catch blocks created/updated externally (e.g. via Agent API)
         if (supabase && user) {
           (async () => {
             try {
@@ -287,15 +286,26 @@ function App() {
                 .eq('user_id', user.id)
                 .is('deleted_at', null);
               if (remoteErr || !remoteBlocks) return;
-              const localIds = new Set(boardBlocks.map(b => b.id));
-              const missing = remoteBlocks.filter((r: Record<string, unknown>) => !localIds.has(r.id as string));
+              const localById = new Map(boardBlocks.map(b => [b.id, b]));
               const remoteIds = new Set(remoteBlocks.map((r: Record<string, unknown>) => r.id));
+
+              // Find missing blocks and blocks with newer remote data
+              const toUpsert: Block[] = [];
+              for (const r of remoteBlocks) {
+                const remote = mapRemoteBlock(r as Record<string, unknown>);
+                const local = localById.get(remote.id);
+                if (!local || remote.updatedAt > local.updatedAt) {
+                  toUpsert.push(remote);
+                }
+              }
               const staleDeleted = boardBlocks.filter(b => !remoteIds.has(b.id));
 
-              if (missing.length === 0 && staleDeleted.length === 0) return;
+              if (toUpsert.length === 0 && staleDeleted.length === 0) return;
 
-              // Batch merge missing blocks into Dexie
-              await db.blocks.bulkPut(missing.map(r => mapRemoteBlock(r as Record<string, unknown>)));
+              // Batch merge new/updated blocks into Dexie
+              if (toUpsert.length > 0) {
+                await db.blocks.bulkPut(toUpsert);
+              }
               // Batch remove stale blocks
               if (staleDeleted.length > 0) {
                 await db.blocks.bulkDelete(staleDeleted.map(b => b.id));

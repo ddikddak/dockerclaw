@@ -211,7 +211,7 @@ class SyncService {
             await db._syncQueue.where({ table, recordId }).delete();
             return;
           }
-          logger.error('sync', `delete ${table}/${recordId}`, error); 
+          logger.error('sync', `delete ${table}/${recordId}: ${error.message} (code=${error.code}, details=${error.details})`);
           return; 
         }
       } else if (table === 'boards') {
@@ -225,7 +225,7 @@ class SyncService {
             await db._syncQueue.where({ table, recordId }).delete();
             return;
           }
-          logger.error('sync', `upsert board ${recordId}`, error); 
+          logger.error('sync', `upsert board ${recordId}: ${error.message} (code=${error.code}, details=${error.details}, hint=${error.hint})`);
           return; 
         }
       } else {
@@ -238,16 +238,19 @@ class SyncService {
           await db._syncQueue.where({ table, recordId }).delete();
           return;
         }
-        const { error } = await supabase.from('blocks').upsert(blockToSupabaseRow(block, this.user.id));
-        if (error) { 
+        const row = blockToSupabaseRow(block, this.user.id);
+        const { error } = await supabase.from('blocks').upsert(row);
+        if (error) {
           // RLS error - skip this record
           if (this.isRLSError(error)) {
             logger.warn('sync', `RLS policy blocked block ${recordId} - removing from queue`);
             await db._syncQueue.where({ table, recordId }).delete();
             return;
           }
-          logger.error('sync', `upsert block ${recordId}`, error); 
-          return; 
+          logger.error('sync', `upsert block ${recordId}: ${error.message} (code=${error.code}, details=${error.details}, hint=${error.hint})`);
+          // Remove from queue - retrying the same data won't fix schema/constraint errors
+          await db._syncQueue.where({ table, recordId }).delete();
+          return;
         }
       }
 

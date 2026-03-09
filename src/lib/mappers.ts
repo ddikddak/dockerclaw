@@ -55,7 +55,7 @@ export function boardToSupabaseRow(board: Board, userId: string) {
 
 /** Map a local Block to Supabase row format (camelCase -> snake_case) */
 export function blockToSupabaseRow(block: Block, userId: string) {
-  return {
+  const row: Record<string, unknown> = {
     id: block.id,
     user_id: userId,
     board_id: block.boardId,
@@ -67,12 +67,14 @@ export function blockToSupabaseRow(block: Block, userId: string) {
     z: block.z || 0,
     locked: block.locked || false,
     agent_access: block.agentAccess || [],
-    description: block.description || null,
-    purpose: block.purpose || null,
-    semantic_tags: block.semanticTags || [],
     data: block.data,
     created_at: block.createdAt,
     updated_at: block.updatedAt,
     deleted_at: block.deletedAt || null,
   };
+  // Only include metadata columns when set (avoids 400 if migration 004 not applied)
+  if (block.description) row.description = block.description;
+  if (block.purpose) row.purpose = block.purpose;
+  if (block.semanticTags?.length) row.semantic_tags = block.semanticTags;
+  return row;
 }
