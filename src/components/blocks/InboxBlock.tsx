@@ -85,7 +85,18 @@ export function InboxBlock({ data, onUpdate, onConvertToTask, onConvertToDoc }: 
     [onConvertToDoc, handleArchiveItem]
   );
 
-  const items = data.items || [];
+  // Normalize items: handle both standard format and API format (text/from/timestamp)
+  const items: InboxItem[] = useMemo(() => (data.items || []).map((raw) => {
+    const r = raw as InboxItem & Record<string, unknown>;
+    return {
+      id: r.id,
+      title: r.title || (r.text as string) || '',
+      bodyMarkdown: r.bodyMarkdown || (r.content as string) || '',
+      source: r.source || ((r.from as string) === 'agent' ? 'agent' : 'user') as InboxItem['source'],
+      status: r.status || ('open' as const),
+      createdAt: r.createdAt || (r.timestamp as string) || new Date().toISOString(),
+    };
+  }), [data.items]);
   const openItems = useMemo(() => items.filter((i) => i.status === 'open'), [items]);
   const archivedItems = useMemo(() => items.filter((i) => i.status === 'archived'), [items]);
   const [showArchived, setShowArchived] = useState(false);

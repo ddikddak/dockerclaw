@@ -19,7 +19,7 @@ import { logger } from '@/lib/logger';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
-import type { Board, Block, BlockType, BlockPurpose, Agent, Connection, BoardPermission, BoardCollaborator, ImageBlockData, InboxBlockData } from '@/types';
+import type { Board, Block, BlockType, BlockPurpose, Agent, Connection, BoardPermission, BoardCollaborator, ImageBlockData } from '@/types';
 import type { PresenceUser } from '@/services/collaboration';
 
 interface SharedBoard {
@@ -295,11 +295,11 @@ function App() {
         if (supabase && user) {
           (async () => {
             try {
+              // Fetch all blocks for this board (includes agent-created blocks via RLS)
               const { data: remoteBlocks, error: remoteErr } = await supabase
                 .from('blocks')
                 .select('*')
                 .eq('board_id', boardId)
-                .eq('user_id', user.id)
                 .is('deleted_at', null);
               if (remoteErr) { console.warn('[sync] bg fetch error:', remoteErr); return; }
               if (!remoteBlocks) return;
@@ -307,17 +307,6 @@ function App() {
               // Always merge remote into Dexie - remote is source of truth
               const mapped = remoteBlocks.map((r: Record<string, unknown>) => mapRemoteBlock(r));
               const remoteIds = new Set(mapped.map(b => b.id));
-
-              // Log inbox blocks data for debugging
-              const inboxBlocks = mapped.filter(b => b.type === 'inbox');
-              if (inboxBlocks.length > 0) {
-                for (const ib of inboxBlocks) {
-                  const localBlock = boardBlocks.find(b => b.id === ib.id);
-                  const remoteItems = (ib.data as InboxBlockData)?.items?.length || 0;
-                  const localItems = localBlock ? ((localBlock.data as InboxBlockData)?.items?.length || 0) : -1;
-                  console.warn(`[sync] inbox ${ib.id}: remote=${remoteItems} items, local=${localItems} items`);
-                }
-              }
 
               // Check if anything actually changed before updating state
               const localById = new Map(boardBlocks.map(b => [b.id, b]));
