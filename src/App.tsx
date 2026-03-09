@@ -301,7 +301,9 @@ function App() {
                 .eq('board_id', boardId)
                 .eq('user_id', user.id)
                 .is('deleted_at', null);
-              if (remoteErr || !remoteBlocks) return;
+              if (remoteErr) { console.warn('[sync] bg fetch error:', remoteErr); return; }
+              if (!remoteBlocks) return;
+              console.debug(`[sync] bg: ${remoteBlocks.length} remote, ${boardBlocks.length} local for board ${boardId}`);
               const localById = new Map(boardBlocks.map(b => [b.id, b]));
               const remoteIds = new Set(remoteBlocks.map((r: Record<string, unknown>) => r.id));
 
@@ -310,13 +312,18 @@ function App() {
               for (const r of remoteBlocks) {
                 const remote = mapRemoteBlock(r as Record<string, unknown>);
                 const local = localById.get(remote.id);
-                if (!local || remote.updatedAt > local.updatedAt) {
+                if (!local) {
+                  console.debug(`[sync] bg: new block ${remote.id} (${remote.type})`);
+                  toUpsert.push(remote);
+                } else if (remote.updatedAt > local.updatedAt) {
+                  console.debug(`[sync] bg: updated block ${remote.id} (remote=${remote.updatedAt} > local=${local.updatedAt})`);
                   toUpsert.push(remote);
                 }
               }
               const staleDeleted = boardBlocks.filter(b => !remoteIds.has(b.id));
 
               if (toUpsert.length === 0 && staleDeleted.length === 0) return;
+              console.debug(`[sync] bg: merging ${toUpsert.length} upserts, ${staleDeleted.length} deletes`);
 
               // Batch merge new/updated blocks into Dexie
               if (toUpsert.length > 0) {
