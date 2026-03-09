@@ -122,7 +122,7 @@ class SyncService {
         (payload) => this.handleRealtimeEvent('blocks', payload)
       )
       .subscribe((status) => {
-        logger.debug('sync', `realtime: ${status}`);
+        logger.warn('sync', `realtime: ${status}`);
       });
   }
 
@@ -145,7 +145,7 @@ class SyncService {
       return;
     }
 
-    logger.debug('sync', `realtime ${eventType} on ${table}`, recordId);
+    logger.warn('sync', `realtime ${eventType} on ${table}`, recordId);
 
     if (eventType === 'DELETE' && oldRecord?.id) {
       if (table === 'boards') {

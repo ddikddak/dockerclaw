@@ -176,6 +176,22 @@ function App() {
     }
   }, [currentBoardId, boardsById]);
 
+  // Poll for remote block changes (fallback when realtime WebSocket is down)
+  // Also re-fetches on tab visibility change
+  useEffect(() => {
+    if (!user || !supabase) return;
+    const poll = () => {
+      const boardId = currentBoardIdRef.current;
+      if (boardId && document.visibilityState === 'visible') loadBlocks(boardId);
+    };
+    const interval = setInterval(poll, 10_000);
+    document.addEventListener('visibilitychange', poll);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', poll);
+    };
+  }, [user]);
+
   // Save agents + connections together to avoid settings race condition
   const settingsSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
