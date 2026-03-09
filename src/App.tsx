@@ -291,7 +291,7 @@ function App() {
         const boardBlocks = await BlockService.getByBoardId(boardId);
         setBlocks(boardBlocks);
 
-        // Background sync: catch blocks created/updated externally (e.g. via Agent API)
+        // Background sync: merge remote state as source of truth for API changes
         if (supabase && user) {
           (async () => {
             try {
@@ -303,37 +303,30 @@ function App() {
                 .is('deleted_at', null);
               if (remoteErr) { console.warn('[sync] bg fetch error:', remoteErr); return; }
               if (!remoteBlocks) return;
-              console.debug(`[sync] bg: ${remoteBlocks.length} remote, ${boardBlocks.length} local for board ${boardId}`);
-              const localById = new Map(boardBlocks.map(b => [b.id, b]));
-              const remoteIds = new Set(remoteBlocks.map((r: Record<string, unknown>) => r.id));
 
-              // Find missing blocks and blocks with newer remote data
-              const toUpsert: Block[] = [];
-              for (const r of remoteBlocks) {
-                const remote = mapRemoteBlock(r as Record<string, unknown>);
+              // Always merge remote into Dexie - remote is source of truth
+              const remoteIds = new Set<string>();
+              const mapped = remoteBlocks.map((r: Record<string, unknown>) => {
+                const block = mapRemoteBlock(r);
+                remoteIds.add(block.id);
+                return block;
+              });
+
+              // Check if anything actually changed before updating state
+              const localById = new Map(boardBlocks.map(b => [b.id, b]));
+              const hasChanges = mapped.some(remote => {
                 const local = localById.get(remote.id);
-                if (!local) {
-                  console.debug(`[sync] bg: new block ${remote.id} (${remote.type})`);
-                  toUpsert.push(remote);
-                } else if (remote.updatedAt > local.updatedAt) {
-                  console.debug(`[sync] bg: updated block ${remote.id} (remote=${remote.updatedAt} > local=${local.updatedAt})`);
-                  toUpsert.push(remote);
-                }
-              }
+                return !local || JSON.stringify(local.data) !== JSON.stringify(remote.data)
+                  || new Date(remote.updatedAt).getTime() !== new Date(local.updatedAt).getTime();
+              });
               const staleDeleted = boardBlocks.filter(b => !remoteIds.has(b.id));
 
-              if (toUpsert.length === 0 && staleDeleted.length === 0) return;
-              console.debug(`[sync] bg: merging ${toUpsert.length} upserts, ${staleDeleted.length} deletes`);
+              if (!hasChanges && staleDeleted.length === 0) return;
 
-              // Batch merge new/updated blocks into Dexie
-              if (toUpsert.length > 0) {
-                await db.blocks.bulkPut(toUpsert);
-              }
-              // Batch remove stale blocks
+              await db.blocks.bulkPut(mapped);
               if (staleDeleted.length > 0) {
                 await db.blocks.bulkDelete(staleDeleted.map(b => b.id));
               }
-              // Reload from Dexie to update UI
               const refreshed = await BlockService.getByBoardId(boardId);
               setBlocks(refreshed);
             } catch (err: unknown) {
